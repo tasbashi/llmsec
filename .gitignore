@@ -46,3 +46,6 @@ npm-debug.log*
 .cache/
 
 llmsec_reports
+
+# Local-only GSD planning artifacts — tracked on master, never on main
+.planning/
