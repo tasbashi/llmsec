@@ -9,6 +9,18 @@ description = "Automated vulnerability scanner for applications that integrate L
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+authors = [{ name = "Yunus Emre Taşbaşı" }]
+keywords = ["llm", "security", "owasp", "prompt-injection", "red-teaming", "pentest", "ai-security"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
 
 dependencies = [
     "typer>=0.12",
@@ -22,6 +34,11 @@ dependencies = [
     "instructor>=1.0",
     "litellm==1.93.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/tasbashi/llmsec"
+Repository = "https://github.com/tasbashi/llmsec"
+Issues = "https://github.com/tasbashi/llmsec/issues"
 
 [project.scripts]
 llmsec = "llmsec.cli:app"
