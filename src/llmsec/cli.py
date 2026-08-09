@@ -22,7 +22,7 @@ import click
 import typer
 from pydantic import ValidationError
 
-from llmsec import api
+from llmsec import __version__, api
 from llmsec.attacker import AttackerExtraNotInstalled, require_deep_extra
 from llmsec.auth_gate import AuthorizationDeclined
 from llmsec.config import load_config
@@ -33,6 +33,27 @@ from llmsec.reporting.markdown_reporter import MarkdownReporter
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(name="llmsec")
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"llmsec {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            callback=_version_callback,
+            is_eager=True,
+            help="Show the installed llmsec version and exit.",
+        ),
+    ] = False,
+) -> None:
+    """llmsec: automated vulnerability scanner for LLM-integrated applications."""
 
 
 @app.command("scan")
