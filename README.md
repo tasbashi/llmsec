@@ -67,7 +67,7 @@ flowchart LR
     REG --> GEN[Modules generate<br/>TestCases from payload corpora]
     GEN --> ORCH[Orchestrator<br/>bounded-concurrency dispatch]
     ORCH --> ADAPT[Target adapter<br/>raw LLM API or HTTP app]
-    ADAPT --> EVAL[Module evaluate&#40;&#41;<br/>layered detection]
+    ADAPT --> EVAL["Module evaluate — layered detection"]
     EVAL --> DEEP{--deep?}
     DEEP -->|no| SCORE
     DEEP -->|yes| ATK[Attacker team mutates<br/>blocked/partial cases<br/>under a budget cap]
