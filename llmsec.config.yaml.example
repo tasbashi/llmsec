@@ -1,0 +1,76 @@
+# Example llmsec configuration.
+# Copy to llmsec.config.yaml and adjust for your target.
+# This example targets demo-app/backend's /chat endpoint (an HTTP app target).
+
+target:
+  type: http_app
+  method: POST
+  url: http://localhost:8000/chat
+  headers:
+    Content-Type: application/json
+  body_template: '{"message": "{{payload}}"}'
+  response_path: response
+
+# --- raw_llm alternative (commented out) ---
+# Uncomment and adjust to test a raw LLM API directly instead of an HTTP app.
+# Only an env-var NAME is ever referenced here — never a literal API key.
+#
+# target:
+#   type: raw_llm
+#   model: openai/gpt-4o-mini
+#   api_key_env: OPENAI_API_KEY
+
+enabled_modules: []
+max_concurrency: 5
+output_dir: ./llmsec_reports
+judge_model: openai/gpt-4o-mini
+judge_api_key_env: OPENAI_API_KEY
+
+# --- attacker (deep mode, commented out) -------------------------------
+# --deep mode's attacker-team configuration (D-89). Uncomment to configure
+# it in YAML instead of (or in addition to) the `--deep`/`--deep-profile`
+# CLI flags -- CLI flags always win (CORE-02 layered precedence).
+#
+# Requires the optional [deep] extra (`pip install ".[deep]"`, Python
+# >= 3.11) -- see README.md "Deep Mode (Attacker LLM)" for the full guide.
+#
+# Every credential field below is an environment variable NAME ONLY --
+# never a literal secret value (D-08/D-89), exactly like target.api_key_env
+# above.
+#
+# attacker:
+#   enabled: true
+#   # One of "light" / "standard" / "thorough" -- bundles rounds,
+#   # variants-per-round, and budget into one intensity. Any field below
+#   # left unset falls through to this profile's own default.
+#   profile: standard
+#   # Default attacker model for every role, unless overridden per-role
+#   # below. Exactly one model is release-validated -- change with care.
+#   model: openai:gpt-4o-mini
+#   # Env var NAME holding the attacker team's own API key -- never the
+#   # target's credential, and never a literal key value here.
+#   api_key_env: OPENAI_API_KEY
+#   # Explicit overrides -- uncomment any subset; each replaces only its
+#   # own profile default, the rest still come from `profile:` above.
+#   # max_rounds: 2
+#   # variants_per_round: 3
+#   # budget_usd: 2.00
+#   # warn_threshold_usd: 1.50
+#   # agent_call_ceiling: 120
+#   # Restrict which technique families the team may select (defaults to
+#   # every TechniqueFamily/PiiAttackVector value when omitted).
+#   # enabled_techniques: [instruction_override, role_play]
+#   # Disk-backed checkpointing, required for `--resume`. Redacted before
+#   # every write (D-73 mitigation 2) -- omit for in-memory-only campaigns.
+#   # checkpoint_dir: ./llmsec_reports/.attacker-checkpoints
+#   # Per-role model/credential/tuning override map -- empty by default.
+#   # One example: give the Strategist a stronger model than the rest.
+#   roles: {}
+#   #   strategist:
+#   #     model: openai:gpt-4o
+#   #     api_key_env: OPENAI_API_KEY
+#   #     temperature: 0.2
+#   #     max_tokens: 512
+#   #     # This role's spend ceiling as a fraction of the single shared
+#   #     # campaign budget pool -- never a second, independent cap.
+#   #     budget_share: 0.4

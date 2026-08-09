@@ -1,0 +1,22 @@
+target:
+  type: http_app
+  method: POST
+  url: http://127.0.0.1:8000/chat
+  headers:
+    Content-Type: application/json
+  body_template: '{"message": "{{payload}}"}'
+  response_path: response
+
+enabled_modules:
+  - pii_exfiltration
+
+output_dir: ./llmsec_reports
+judge_model: openai/gpt-4o-mini
+judge_api_key_env: OPENAI_API_KEY
+
+attacker:
+  enabled: true
+  profile: light
+  model: openai:gpt-4o-mini
+  api_key_env: OPENAI_API_KEY
+  checkpoint_dir: ./llmsec_reports/.attacker-checkpoints

@@ -1,0 +1,129 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llm-security-tester"
+version = "0.1.0"
+description = "Automated vulnerability scanner for applications that integrate Large Language Models, covering the OWASP Top 10 for LLMs."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+dependencies = [
+    "typer>=0.12",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "pyyaml>=6.0",
+    "jinja2>=3.1",
+    "rich>=13.7",
+    "tenacity>=8.2",
+    "instructor>=1.0",
+    "litellm==1.93.0",
+]
+
+[project.scripts]
+llmsec = "llmsec.cli:app"
+
+[project.entry-points."llmsec.modules"]
+system_prompt_leakage = "llmsec.modules.system_prompt_leakage:SystemPromptLeakageModule"
+prompt_injection = "llmsec.modules.prompt_injection:PromptInjectionModule"
+pii_exfiltration = "llmsec.modules.pii_exfiltration:PiiExfiltrationModule"
+insecure_output = "llmsec.modules.insecure_output:InsecureOutputModule"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.1,<9",
+    "pytest-asyncio>=0.23",
+    "respx",
+    "mypy",
+    "ruff",
+]
+# D-27: optional NER detection layer (Presidio + spaCy) for the
+# pii_exfiltration module's unstructured-PII tier (names/addresses/orgs).
+# NEVER a core dependency -- the regex/canary/judge tiers work without it.
+# Package legitimacy verified 2026-07-23 (03-05-PLAN.md Task 1 checkpoint,
+# human-approved): presidio-analyzer's GitHub org (data-privacy-stack/presidio,
+# migrated from microsoft/presidio) confirmed a legitimate continuation, not a
+# hostile fork; spacy confirmed as explosion.ai's long-standing package.
+# `presidio-anonymizer` is deliberately NOT included -- the framework's own
+# `redact_pii_match()` already handles redaction, and `AnalyzerEngine.analyze()`
+# only needs to return spans, so anonymizer would be redundant dependency
+# surface with no present or future benefit (RESEARCH.md Open Question 1).
+#
+# TWO-STEP INSTALL -- `pip install ".[pii-ner]"` alone is NOT sufficient:
+#   pip install ".[pii-ner]"
+#   python -m spacy download en_core_web_lg   # ~746MB, not a PyPI package
+pii-ner = [
+    "presidio-analyzer>=2.2",
+    "spacy>=3.7",
+]
+
+# D-74: optional attacker-team stack (LangChain + DeepAgents on LangGraph) that
+# powers `--deep` mode's multi-role red-teaming (ATK-01, CLI-04). NEVER a core
+# dependency and NEVER appears in `dependencies` above -- the `--quick` static
+# path never installs or imports any of these five.
+#
+# Package legitimacy verified 2026-08-05 (05-01-PLAN.md Task 1 checkpoint,
+# human-approved): all five were flagged SUS by
+# `gsd-tools query package-legitimacy check`, traced in 05-RESEARCH.md's
+# `## Package Legitimacy Audit` to two known heuristic weaknesses (latest-
+# upload-date read as first-publish date; empty downloads-API response), not a
+# genuine concern. Human independently re-confirmed each against the PyPI JSON
+# API: `langchain` (org langchain-ai, first release 2022-10-25, 508 releases),
+# `langgraph` (org langchain-ai, first release 2024-01-08, 275 releases),
+# `deepagents` (org langchain-ai, first release 2025-07-29 -- youngest of the
+# five at ~1 year old, but actively developed at 115 releases in that year),
+# `langgraph-checkpoint`/`langgraph-checkpoint-sqlite` (LangGraph monorepo
+# subpackages, same org/repo as `langgraph`). Approved on condition (b): these
+# five enter the tree only as this OPTIONAL extra.
+#
+# `langgraph-checkpoint-sqlite` is a SEPARATE distribution from `langgraph`
+# and is required for disk-backed `SqliteSaver` -- the base `langgraph`
+# package ships only the non-persistent in-memory saver.
+#
+# `langgraph-checkpoint` MUST stay at or above 4.1.1, which sits above the
+# `>=3.0` floor that fixes advisory GHSA-wwqv-p2pp-99h5 (checkpoint
+# deserialization). Do not let a future bump drop below this floor.
+#
+# `deepagents==0.7.3` declares `Requires-Python: >=3.11,<4.0`, one minor above
+# this project's own `requires-python = ">=3.10"`. The runtime gate in
+# `src/llmsec/attacker/__init__.py` (`require_deep_extra()`) is what turns
+# that mismatch into an actionable message instead of a confusing resolver
+# error (05-RESEARCH.md Pitfall 1).
+#
+# These six versions are coupled (resolved together by a real Wave 0 spike
+# resolver run plus a real 05-11 live-gate resolver run for langchain-openai,
+# not read off a changelog) -- bumping any one is a deliberate task, never an
+# automatic dependency update. `langchain-openai==1.4.2` is required for
+# `DEFAULT_ATTACKER_MODEL = "openai:gpt-4o-mini"` to actually construct via
+# `init_chat_model()` -- discovered live in 05-11 when every prior offline
+# gate had mocked past this exact code path.
+#
+# `litellm` stays on its existing core pin (`==1.93.0` above) and must NEVER
+# be re-declared or re-pinned here (D-73 mitigation 3) -- the target adapter
+# path stays isolated from the attacker-team framework.
+deep = [
+    "langchain==1.3.14",
+    "langgraph==1.2.10",
+    "langgraph-checkpoint==4.1.1",
+    "langgraph-checkpoint-sqlite==3.1.1",
+    "deepagents==0.7.3",
+    "langchain-openai==1.4.2",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "golden: live judge-LLM eval requiring real credentials, excluded from the default fast suite",
+]
+addopts = "-m 'not golden'"
+
+# Verified (plan 02-08): hatchling's default VCS-aware packaging already
+# includes src/llmsec/modules/payloads/*.yaml in the built wheel (confirmed
+# via `pip wheel . --no-deps` + zipfile inspection) since the corpus files
+# are git-tracked. No force-include/artifacts declaration needed.
+[tool.hatch.build.targets.wheel]
+packages = ["src/llmsec"]

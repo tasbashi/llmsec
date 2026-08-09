@@ -1,0 +1,84 @@
+
+# Scan Report: {{ report.scan_id }}
+
+**Target:** {{ report.target_summary }}
+**Modules:** {{ report.module_ids | join(", ") }}
+**Started:** {{ report.started_at }}
+**Completed:** {{ report.completed_at }}
+
+## Severity Summary
+
+{% for severity, count in severity_counts.items() -%}
+- **{{ severity }}**: {{ count }}
+{% endfor %}
+
+{% if deep_mode %}
+## Deep Mode Summary
+
+- **Cases attacked:** {{ deep_mode.cases_attacked }}
+- **Rounds run:** {{ deep_mode.rounds_run }}
+- **Variants dispatched:** {{ deep_mode.variants_dispatched }}
+- **Bypasses found (static payloads alone missed):** {{ deep_mode.bypasses_found }}
+- **Spend:** {{ deep_mode.spend_display }}
+- **Cost per bypass:** {{ deep_mode.cost_per_bypass_display }}
+- **Agent calls:** {{ deep_mode.agent_calls }}
+- **Termination reason:** {{ deep_mode.termination_reason_display }}
+- **Constraint violations:** {{ deep_mode.constraint_violations }}
+- **Abandoned arcs:** {{ deep_mode.abandoned_arcs }}
+- **Role structural failures:** {{ deep_mode.role_structural_failures }}
+- **Audit log:** {{ deep_mode.audit_log_display }}
+
+### Per-Role Activity
+
+| Role | Calls | Spend (USD) | Bypasses |
+| --- | --- | --- | --- |
+{% for row in deep_mode.per_role_rows -%}
+| {{ row.role }} | {{ row.calls }} | {{ row.spend_display }} | {{ row.bypasses }} |
+{% endfor %}
+
+### Bypasses (walkable — each traces to its static parent case)
+
+{% if deep_mode.bypass_rows -%}
+{% for row in deep_mode.bypass_rows -%}
+- `{{ row.case_id }}` (parent: `{{ row.parent_case_id }}`)
+{% endfor %}
+{% else -%}
+No bypasses found this run.
+{% endif %}
+
+{% endif %}
+{% if report.limitations %}
+## Scan Limitations
+
+{% for item in report.limitations -%}
+- {{ item }}
+{% endfor %}
+
+{% endif %}
+## Findings
+
+{% if report.findings %}
+{% for finding in report.findings -%}
+### {{ finding.technique_id }} — {{ finding.severity }}
+
+- **Case ID:** {{ finding.case_id }}
+- **Verdict:** {{ finding.verdict.value }}
+- **OWASP Ref:** {{ finding.owasp_ref }}
+{% if finding.transport_mode %}
+- **Transport:** {{ finding.transport_mode }}
+{% endif %}
+{% if finding.detection_layer %}
+- **Detection Layer:** {{ finding.detection_layer }}
+{% endif %}
+- **Evidence:**
+
+{{ evidence_blocks[loop.index0] }}
+
+- **Remediation:**
+
+{{ remediation_blocks[loop.index0] }}
+
+{% endfor -%}
+{% else -%}
+No findings.
+{% endif %}

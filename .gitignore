@@ -1,0 +1,51 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Python tool caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.tox/
+.nox/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Virtual environments
+.venv/
+venv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Node / frontend
+node_modules/
+npm-debug.log*
+
+# Runtime databases
+*.db
+*.sqlite3
+
+# OS files
+.DS_Store
+
+# Editors / assistants
+.vscode/
+.claude/settings.local.json
+
+.cache/
+
+llmsec_reports
+
+# Local-only GSD planning artifacts — tracked on master, never on main
+.planning/
