@@ -23,13 +23,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from langchain.agents.structured_output import MultipleStructuredOutputsError
+from langchain_core.messages import AIMessage
 from pydantic import BaseModel
 
 from llmsec.attacker.audit import AttackerAuditHandler, AttackerAuditWriter
 from llmsec.attacker.config import AttackerConfig, resolve_settings
 from llmsec.attacker.graph import build_campaign_graph
 from llmsec.attacker.roles import ROLE_REGISTRY
-from llmsec.attacker.roles._structured_retry import MAX_STRUCTURED_OUTPUT_RETRIES
+from llmsec.attacker.roles._structured_retry import MAX_STRUCTURED_OUTPUT_RETRIES, invoke_role_with_retry
 from llmsec.attacker.roles.analyst import ObservedDefence, build_analyst_agent
 from llmsec.attacker.roles.crescendo import CrescendoOutput, build_crescendo_agent
 from llmsec.attacker.roles.mutator import MutatedVariant, MutatorOutput, build_mutator_agent
@@ -42,6 +44,7 @@ from .conftest import (
     CANARY_CREDENTIAL_LITERAL,
     KNOWN_INCOMPATIBLE_MODEL_NAME,
     ScriptedToolCallChatModel,
+    flatten_message_batches,
     malformed_tool_call_missing_fields,
     malformed_tool_call_wrong_types,
 )
@@ -105,6 +108,50 @@ def _neutral_mutator_output() -> MutatorOutput:
             )
         ]
     )
+
+
+class _MultipleOutputsThenValidAgent:
+    """A role-agent double whose FIRST `.ainvoke()` raises
+    `MultipleStructuredOutputsError` -- the exception `ToolStrategy` raises
+    when a model calls its structured-output tool more than once in one
+    turn (observed live against gpt-4o-mini in the Mutator role), a
+    `StructuredOutputError` SIBLING of `StructuredOutputValidationError`,
+    never the same class. Its second call succeeds. Proves
+    `invoke_role_with_retry()` retries this failure shape too, not only
+    the schema-validation one `_AlwaysInvalidAgent` already covers."""
+
+    def __init__(self, valid_output: MutatorOutput) -> None:
+        self._valid_output = valid_output
+        self.call_count = 0
+
+    async def ainvoke(self, *args: Any, **kwargs: Any) -> Any:
+        self.call_count += 1
+        if self.call_count == 1:
+            ai_message = AIMessage(
+                content="",
+                tool_calls=[
+                    {"name": "MutatorOutput", "args": {}, "id": "call-1"},
+                    {"name": "MutatorOutput", "args": {}, "id": "call-2"},
+                ],
+            )
+            raise MultipleStructuredOutputsError(["MutatorOutput", "MutatorOutput"], ai_message)
+        return {"structured_response": self._valid_output}
+
+
+async def test_multiple_structured_outputs_error_is_retried_not_fatal():
+    """Regression test for the bug fixed this session: `_structured_retry.py`
+    originally caught only `(StructuredOutputValidationError, ValidationError)`,
+    so `MultipleStructuredOutputsError` escaped `invoke_role_with_retry()`
+    uncaught and aborted the entire deep-mode campaign on a single
+    double-tool-call round instead of retrying it like any other
+    structured-output failure. Must now be retried and recovered."""
+    valid_output = _neutral_mutator_output()
+    agent = _MultipleOutputsThenValidAgent(valid_output)
+
+    result = await invoke_role_with_retry(agent, messages=[], role="mutator")
+
+    assert agent.call_count == 2
+    assert result == valid_output
 
 
 def _neutral_analyst_output() -> ObservedDefence:
@@ -458,3 +505,14 @@ async def test_role_recovers_on_second_attempt_and_every_attempt_is_auditable(
         line for line in written if line["role"] == "strategist" and line["event"] == "model_start"
     ]
     assert len(strategist_starts) >= 2
+
+    # The SECOND attempt is not a blind resend of the first attempt's exact
+    # brief: it carries the first attempt's own violation text forward, so
+    # the model sees what specifically was rejected before trying again.
+    # Regression coverage for the fix made this session -- previously
+    # `invoke_role_with_retry()` re-sent the identical `messages` list on
+    # every attempt with no feedback at all.
+    assert len(strategist_model.received_message_batches) >= 2
+    second_attempt_text = flatten_message_batches([strategist_model.received_message_batches[1]])
+    assert "rejected" in second_attempt_text.lower()
+    assert "field required" in second_attempt_text.lower()

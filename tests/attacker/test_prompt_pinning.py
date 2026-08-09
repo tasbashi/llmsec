@@ -32,7 +32,7 @@ _FROZEN_MUTATOR_SHA256 = "ec2c3bc0dcc7c21c5cb5ba99de21dd3460dab475daace289c81de6
 # Pinned at authoring time (05-07-PLAN.md Task 2).
 _FROZEN_ANALYST_SHA256 = "142fb7779ba2eb1e2df2e3ada39a8afa50c6f2d907e12f6753155269d7929354"
 # Pinned at authoring time (05-07-PLAN.md Task 3).
-_FROZEN_RECON_SHA256 = "5c53843c51e2b7301db75c3e8418837a6f657ef7982fa102b11d2cc7578663c3"
+_FROZEN_RECON_SHA256 = "5c86a47acb58c221f188e7e5174e100c995c91ec51adfac1c77b0b8fb1d0e54d"
 # Pinned at authoring time (05-08-PLAN.md Task 2).
 _FROZEN_CRESCENDO_SHA256 = "6921d08c63ad7bd91441db0e2958c7d587631d175446317fe37399d95945363b"
 
@@ -82,8 +82,8 @@ def test_analyst_prompt_version_is_v1() -> None:
     assert ANALYST_PROMPT_VERSION == "v1"
 
 
-def test_recon_prompt_version_is_v1() -> None:
-    assert RECON_PROMPT_VERSION == "v1"
+def test_recon_prompt_version_is_v2() -> None:
+    assert RECON_PROMPT_VERSION == "v2"
 
 
 def test_crescendo_prompt_version_is_v1() -> None:
