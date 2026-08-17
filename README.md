@@ -49,10 +49,16 @@ Design principles that shape the whole tool:
 |---|---|---|
 | **LLM01:2025 — Prompt Injection** | `prompt_injection` | Direct instruction-override and persona/jailbreak attempts, encoding/obfuscation evasion, multi-turn (crescendo) escalation, and simulated indirect injection via poisoned retrieved content |
 | **LLM02:2025 — Sensitive Information Disclosure** | `pii_exfiltration` | Canary-triggered PII/secret exfiltration across 8 attack vectors: training-data extraction, context replay, credential probing, canary triggering, membership inference, RAG PII extraction, URL exfiltration, PII aggregation |
+| **LLM03:2025 — Supply Chain** | `supply_chain` | Dual-mode: slopsquatting elicitation (hallucinated package names checked against a bundled PyPI snapshot) plus an opt-in standalone CVE/SBOM dependency audit (pip-audit + OSV.dev) |
+| **LLM04:2025 — Data and Model Poisoning** | `data_poisoning` | Paired control/trigger prompts compared for a behavioral shift that suggests a training-time backdoor — always reported as a low-confidence observed signal, never proof |
 | **LLM05:2025 — Improper Output Handling** | `insecure_output` | 14-class taxonomy of unsanitized-output injection: reflected/stored/DOM XSS, classic/blind SQLi, command injection, path traversal, SSRF (internal + cloud metadata), SSTI, Python/JS code injection, log injection, header injection |
+| **LLM06:2025 — Excessive Agency** | `excessive_agency` | Probes what the target *claims* it can do — undeclared functionality, permission-boundary overreach, and unconfirmed autonomous action — via response-text analysis only, no real tool execution |
 | **LLM07:2025 — System Prompt Leakage** | `system_prompt_leakage` | Direct and indirect elicitation of the target's configured system prompt |
+| **LLM08:2025 — Vector and Embedding Weaknesses** | `vector_embedding_weaknesses` | Simulated RAG context with a decoy marker planted in a topically-irrelevant chunk, checking whether it leaks into an answer that should only draw on the relevant chunk |
+| **LLM09:2025 — Misinformation** | `misinformation` | Ground-truth-assertion payloads judged for a fabricated answer versus an accurate restatement or an honest "I don't know" on the follow-up |
+| **LLM10:2025 — Unbounded Consumption** | `unbounded_consumption` | Dual-dispatch: baseline resource-usage measurement probes plus capped, rate-limited flood-class probes for resource-exhaustion/DoS symptoms |
 
-Four of the ten categories are covered by static payload corpora today. The plugin architecture (see [Extending llmsec](#extending-llmsec-plugin-modules)) is what the remaining categories, and any community-contributed technique, plug into — nothing about the scanning pipeline is hardcoded to these four.
+All ten OWASP LLM Top 10 categories are covered by static payload corpora today. The plugin architecture (see [Extending llmsec](#extending-llmsec-plugin-modules)) is what any community-contributed technique plugs into — nothing about the scanning pipeline is hardcoded to these ten.
 
 ## How a scan works
 
@@ -301,8 +307,14 @@ Each module resolves verdicts through cheap deterministic tiers before paying fo
 |---|---|
 | `prompt_injection` | canary decode-then-match → LLM judge |
 | `pii_exfiltration` | canary echo → regex/Luhn → optional NER (`[pii-ner]`) → LLM judge |
+| `supply_chain` | static PyPI-snapshot lookup on extracted package names → LLM judge (MOD-05 half); pip-audit + OSV.dev batch lookup, standalone audit tier (MOD-06 half) |
+| `data_poisoning` | LLM judge only — compares control vs. trigger replies (`judge_poisoning_shift`), always capped to a low-confidence verdict |
 | `insecure_output` | refusal fast-path → 14-class regex library → LLM judge |
+| `excessive_agency` | deterministic response-text classification → LLM judge |
 | `system_prompt_leakage` | canary/known-prompt match → LLM judge |
+| `vector_embedding_weaknesses` | LLM judge only — no deterministic dispatch for cross-document leakage |
+| `misinformation` | LLM judge only — no deterministic dispatch for ground-truth fidelity |
+| `unbounded_consumption` | direct threshold checks on measured latency/token/cost (flood-class probes never reach a judge; baseline probes follow the ordinary request/response path) |
 
 The LLM-judge prompts are frozen, versioned, and SHA-256 pinned in code — never freeform, always a validated structured schema via Instructor, so a judge verdict is never parsed from free text.
 
