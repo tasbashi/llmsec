@@ -98,7 +98,16 @@ class EvalResult(BaseModel):
     # Widened (Phase 3, Pitfall 1) from ["regex", "judge"] to also accept the
     # NER and canary-exact-match tiers `pii_exfiltration` introduces. Every
     # existing "regex"/"judge"-only caller continues to validate unchanged.
-    detection_layer: Literal["regex", "judge", "ner", "canary"]
+    # Widened again (Phase 6, 06-01, MOD-06): the new audit member is the
+    # standalone-audit tier `BaseModule.run_standalone_audit()` results
+    # carry -- no reporter branches on this value (rendered as plain text).
+    # Widened again (Phase 7, 07-01, MOD-08/MOD-09): the new threshold member
+    # is the deterministic token/latency-comparison tier
+    # `unbounded_consumption` uses for both its `evaluate()` and
+    # `run_direct_probe()` paths -- like "audit", `reporting/templates/
+    # report.md.j2` renders this as plain text and branches on nothing, so
+    # this widening needs no reporter change.
+    detection_layer: Literal["regex", "judge", "ner", "canary", "audit", "threshold"]
     transport_mode: TransportMode | None = None
     # Module-supplied, technique-specific remediation that overrides the
     # generic verdict-keyed default at report time (D-26). Optional so
@@ -123,7 +132,14 @@ class Finding(BaseModel):
     # persisted/reported artifact (SC#3) — populated for every module's
     # findings, not just `pii_exfiltration`'s, since `eval_result.
     # detection_layer` already exists on every `EvalResult`.
-    detection_layer: Literal["regex", "judge", "ner", "canary"] | None = None
+    # Widened (Phase 6, 06-01, MOD-06) to also accept the audit tier -- see
+    # `EvalResult.detection_layer`'s comment above; no reporter change
+    # needed for this widening.
+    # Widened again (Phase 7, 07-01, MOD-08/MOD-09) to also accept the
+    # threshold tier -- see `EvalResult.detection_layer`'s comment above.
+    detection_layer: Literal["regex", "judge", "ner", "canary", "audit", "threshold"] | None = (
+        None
+    )
     # --- Phase 5 (05-02): deep-mode lineage fields (D-90) ---------------
     # Same shape/discipline as `TestCase`'s lineage fields above: populated
     # ONLY by the deep-mode attacker layer, every field optional and

@@ -16,14 +16,48 @@ from llmsec.attacker.config import AttackerConfig, ResolvedAttackerSettings
 from llmsec.attacker.prompts import MUTATOR_SYSTEM_PROMPT
 from llmsec.attacker.roles import build_role_chat_model, register_role
 from llmsec.attacker.state import CampaignState
-from llmsec.payloads.schema import PiiAttackVector, TechniqueFamily
+from llmsec.payloads.schema import (
+    AgencyClass,
+    ConsumptionTechniqueVector,
+    MisinformationTechniqueVector,
+    PiiAttackVector,
+    PoisoningTechniqueVector,
+    TechniqueFamily,
+    VectorContextTechniqueVector,
+)
 
 #: The closed technique-family taxonomy a Mutator-returned
 #: `technique_family` must belong to (D-95) -- sourced from the existing
 #: enums in `payloads/schema.py`, never re-declared, so this allowlist can
 #: never silently drift from the corpus taxonomy those enums define.
-_VALID_TECHNIQUE_FAMILIES: frozenset[str] = frozenset(f.value for f in TechniqueFamily) | frozenset(
-    v.value for v in PiiAttackVector
+#: 06-02 (RESEARCH Pitfall #3): `PoisoningTechniqueVector` widened in here
+#: MUST land in the same commit as `attacker/config.py`'s
+#: `DEFAULT_ENABLED_TECHNIQUES` and `attacker/graph.py`'s
+#: `_CLOSED_TECHNIQUE_VOCABULARY` -- omitting any one of the three fails
+#: silently (see `attacker/config.py`'s identical comment for the full
+#: failure mode).
+#: 07-01 (RESEARCH Pitfall #4): `ConsumptionTechniqueVector` widened in here
+#: in the SAME plan as the enum's introduction (`unbounded_consumption` sets
+#: `uses_attacker_llm = True`, D-02).
+#: 08-02 (RESEARCH Pitfall #1): `VectorContextTechniqueVector` and
+#: `AgencyClass` widened in here, in `attacker/config.py`'s
+#: `DEFAULT_ENABLED_TECHNIQUES`, and in `attacker/graph.py`'s
+#: `_CLOSED_TECHNIQUE_VOCABULARY` -- all three, in this SAME commit --
+#: because `vector_embedding_weaknesses` and `excessive_agency` both set
+#: `uses_attacker_llm = True` (D-03).
+#: 09-02 (RESEARCH Pitfall #1): `MisinformationTechniqueVector` widened in
+#: here, in `attacker/config.py`'s `DEFAULT_ENABLED_TECHNIQUES`, and in
+#: `attacker/graph.py`'s `_CLOSED_TECHNIQUE_VOCABULARY` -- all three, in
+#: this SAME commit -- because `misinformation` sets `uses_attacker_llm =
+#: True`.
+_VALID_TECHNIQUE_FAMILIES: frozenset[str] = (
+    frozenset(f.value for f in TechniqueFamily)
+    | frozenset(v.value for v in PiiAttackVector)
+    | frozenset(p.value for p in PoisoningTechniqueVector)
+    | frozenset(c.value for c in ConsumptionTechniqueVector)
+    | frozenset(x.value for x in VectorContextTechniqueVector)
+    | frozenset(a.value for a in AgencyClass)
+    | frozenset(m.value for m in MisinformationTechniqueVector)
 )
 
 
@@ -47,7 +81,8 @@ class MutatedVariant(BaseModel):
         if value not in _VALID_TECHNIQUE_FAMILIES:
             raise ValueError(
                 f"technique_family {value!r} is not a member of the closed "
-                "TechniqueFamily/PiiAttackVector taxonomy (payloads/schema.py)"
+                "TechniqueFamily/PiiAttackVector/PoisoningTechniqueVector/"
+                "ConsumptionTechniqueVector taxonomy (payloads/schema.py)"
             )
         return value
 

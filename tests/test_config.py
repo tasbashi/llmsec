@@ -162,3 +162,150 @@ def test_target_config_session_fields_round_trip():
     )
     restored = TargetConfig.model_validate_json(t.model_dump_json())
     assert restored == t
+
+
+# --- Phase 6 (06-01): supply_chain_manifest_path / poisoning_trigger_overlay_path ---
+
+
+def test_supply_chain_manifest_path_defaults_to_none(tmp_path):
+    config_path = _write_yaml(
+        tmp_path,
+        {"target": {"type": "raw_llm", "model": "openai/gpt-4o-mini", "api_key_env": "OPENAI_API_KEY"}},
+    )
+    cfg = load_config(config_path, {})
+    assert cfg.supply_chain_manifest_path is None
+
+
+def test_poisoning_trigger_overlay_path_defaults_to_none(tmp_path):
+    config_path = _write_yaml(
+        tmp_path,
+        {"target": {"type": "raw_llm", "model": "openai/gpt-4o-mini", "api_key_env": "OPENAI_API_KEY"}},
+    )
+    cfg = load_config(config_path, {})
+    assert cfg.poisoning_trigger_overlay_path is None
+
+
+def test_supply_chain_manifest_path_loads_from_yaml(tmp_path):
+    config_path = _write_yaml(
+        tmp_path,
+        {
+            "target": {"type": "raw_llm", "model": "openai/gpt-4o-mini", "api_key_env": "OPENAI_API_KEY"},
+            "supply_chain_manifest_path": "./requirements.txt",
+        },
+    )
+    cfg = load_config(config_path, {})
+    assert cfg.supply_chain_manifest_path == "./requirements.txt"
+
+
+def test_poisoning_trigger_overlay_path_loads_from_yaml(tmp_path):
+    config_path = _write_yaml(
+        tmp_path,
+        {
+            "target": {"type": "raw_llm", "model": "openai/gpt-4o-mini", "api_key_env": "OPENAI_API_KEY"},
+            "poisoning_trigger_overlay_path": "./overlay.yaml",
+        },
+    )
+    cfg = load_config(config_path, {})
+    assert cfg.poisoning_trigger_overlay_path == "./overlay.yaml"
+
+
+def test_supply_chain_manifest_path_cli_override_wins_over_yaml(tmp_path):
+    """CORE-02 precedence: an explicit CLI override wins over YAML, same
+    contract every other ScanConfig field already honors."""
+    config_path = _write_yaml(
+        tmp_path,
+        {
+            "target": {"type": "raw_llm", "model": "openai/gpt-4o-mini", "api_key_env": "OPENAI_API_KEY"},
+            "supply_chain_manifest_path": "./requirements.txt",
+        },
+    )
+    cfg = load_config(config_path, {"supply_chain_manifest_path": "./pyproject.toml"})
+    assert cfg.supply_chain_manifest_path == "./pyproject.toml"
+
+
+def test_poisoning_trigger_overlay_path_cli_override_wins_over_yaml(tmp_path):
+    config_path = _write_yaml(
+        tmp_path,
+        {
+            "target": {"type": "raw_llm", "model": "openai/gpt-4o-mini", "api_key_env": "OPENAI_API_KEY"},
+            "poisoning_trigger_overlay_path": "./overlay.yaml",
+        },
+    )
+    cfg = load_config(config_path, {"poisoning_trigger_overlay_path": "./override.yaml"})
+    assert cfg.poisoning_trigger_overlay_path == "./override.yaml"
+
+
+# --- Phase 7 (07-02, D-05): consumption_token_threshold / consumption_latency_threshold_ms ---
+
+
+class TestConsumptionConfigRoundTrip:
+    """07-02-PLAN.md Task 3: the two MOD-08 threshold dials round-trip
+    through YAML exactly like `supply_chain_manifest_path` (ROADMAP SC#3's
+    config layer, before the module even resolves its own defaults)."""
+
+    def test_both_fields_set_load_into_scanconfig_with_exact_values(self, tmp_path):
+        config_path = _write_yaml(
+            tmp_path,
+            {
+                "target": {
+                    "type": "raw_llm",
+                    "model": "openai/gpt-4o-mini",
+                    "api_key_env": "OPENAI_API_KEY",
+                },
+                "consumption_token_threshold": 50,
+                "consumption_latency_threshold_ms": 250.5,
+            },
+        )
+        cfg = load_config(config_path, {})
+        assert cfg.consumption_token_threshold == 50
+        assert cfg.consumption_latency_threshold_ms == 250.5
+
+    def test_neither_field_set_loads_none_for_both(self, tmp_path):
+        config_path = _write_yaml(
+            tmp_path,
+            {"target": {"type": "raw_llm", "model": "openai/gpt-4o-mini", "api_key_env": "OPENAI_API_KEY"}},
+        )
+        cfg = load_config(config_path, {})
+        assert cfg.consumption_token_threshold is None
+        assert cfg.consumption_latency_threshold_ms is None
+
+    def test_cli_override_wins_over_yaml_for_both_fields(self, tmp_path):
+        """CORE-02 precedence: an explicit CLI override wins over YAML for
+        these two fields, same contract every other ScanConfig field
+        already honors -- an UNSET CLI flag must never clobber a YAML
+        value."""
+        config_path = _write_yaml(
+            tmp_path,
+            {
+                "target": {
+                    "type": "raw_llm",
+                    "model": "openai/gpt-4o-mini",
+                    "api_key_env": "OPENAI_API_KEY",
+                },
+                "consumption_token_threshold": 50,
+                "consumption_latency_threshold_ms": 250.5,
+            },
+        )
+        cfg = load_config(
+            config_path,
+            {"consumption_token_threshold": 999, "consumption_latency_threshold_ms": 999.0},
+        )
+        assert cfg.consumption_token_threshold == 999
+        assert cfg.consumption_latency_threshold_ms == 999.0
+
+    def test_empty_cli_overrides_does_not_clobber_yaml_values(self, tmp_path):
+        config_path = _write_yaml(
+            tmp_path,
+            {
+                "target": {
+                    "type": "raw_llm",
+                    "model": "openai/gpt-4o-mini",
+                    "api_key_env": "OPENAI_API_KEY",
+                },
+                "consumption_token_threshold": 50,
+                "consumption_latency_threshold_ms": 250.5,
+            },
+        )
+        cfg = load_config(config_path, {})
+        assert cfg.consumption_token_threshold == 50
+        assert cfg.consumption_latency_threshold_ms == 250.5

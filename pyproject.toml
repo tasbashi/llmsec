@@ -48,6 +48,12 @@ system_prompt_leakage = "llmsec.modules.system_prompt_leakage:SystemPromptLeakag
 prompt_injection = "llmsec.modules.prompt_injection:PromptInjectionModule"
 pii_exfiltration = "llmsec.modules.pii_exfiltration:PiiExfiltrationModule"
 insecure_output = "llmsec.modules.insecure_output:InsecureOutputModule"
+supply_chain = "llmsec.modules.supply_chain:SupplyChainModule"
+data_poisoning = "llmsec.modules.data_poisoning:DataPoisoningModule"
+unbounded_consumption = "llmsec.modules.unbounded_consumption:UnboundedConsumptionModule"
+vector_embedding_weaknesses = "llmsec.modules.vector_embedding_weaknesses:VectorEmbeddingWeaknessesModule"
+excessive_agency = "llmsec.modules.excessive_agency:ExcessiveAgencyModule"
+misinformation = "llmsec.modules.misinformation:MisinformationModule"
 
 [project.optional-dependencies]
 dev = [
@@ -128,6 +134,34 @@ deep = [
     "langgraph-checkpoint-sqlite==3.1.1",
     "deepagents==0.7.3",
     "langchain-openai==1.4.2",
+]
+
+# D-06/MOD-06: optional CVE/SBOM dependency audit tier (pip-audit + OSV.dev)
+# for the supply_chain module's run_standalone_audit() half. NEVER a core
+# dependency -- supply_chain's MOD-05 (slopsquatting) half and every other
+# module work without it; a scan with this extra absent degrades to an
+# honest "CVE tier did not run" ScanReport.limitations note (D-06), never a
+# silent clean report.
+#
+# Package legitimacy verified 2026-08-13 (06-01-PLAN.md Task 1 checkpoint,
+# human-approved): pip-audit was flagged [SUS] by
+# `gsd-tools query package-legitimacy check` for the `unknown-downloads`
+# heuristic weakness (downloads API returned null; published-at heuristic
+# reads the latest upload as the first publish -- the same two heuristic
+# weaknesses already documented in the `[deep]` extra's comment above, not a
+# genuine concern). Human independently re-confirmed via the PyPI + GitHub
+# APIs: repo is github.com/pypa/pip-audit, owned by the `pypa` org (the
+# Python Packaging Authority, same org that publishes pip/build/twine),
+# created 2021-09-02, 1345 stars, not archived, latest release 2.10.1
+# (2026-06-10) -- matches the pin below exactly.
+#
+# `cyclonedx-bom` was ALSO flagged [SUS] in 06-RESEARCH.md's Package
+# Legitimacy Audit but is deliberately NOT included here --
+# REQUIREMENTS.md's "Out of Scope" section excludes SBOM work beyond
+# pip-audit/OSV.dev coverage, so it needs no approval and adds no value to
+# this extra.
+supply-chain = [
+    "pip-audit>=2.10.1,<3",
 ]
 
 [tool.pytest.ini_options]

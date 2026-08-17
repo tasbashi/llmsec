@@ -13,6 +13,7 @@ directly gets the identical authorization guarantee a CLI user gets
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -29,7 +30,21 @@ from llmsec.config import ScanConfig
 from llmsec.detection.canary import CANARY_LIMITATION_NOTE
 from llmsec.detection.pii_ner import ner_available
 from llmsec.models import DeepModeSummary, EvalResult, Finding, ScanContext, ScanReport, Verdict
+from llmsec.modules.supply_chain import (
+    AUDIT_CASE_ID_EXTRA_MISSING,
+    AUDIT_CASE_ID_MANIFEST_MISSING,
+    AUDIT_CASE_ID_OSV_UNREACHABLE,
+    SLOPSQUATTING_CASE_ID_PREFIX,
+    index_snapshot_limitation_note,
+)
+# Phase 7 (07-03): imported (never re-typed) so `_CONSUMPTION_FLOOD_CAP_NOTE`
+# below can never drift from the module's own cap constant. `api.py`
+# already imports from `llmsec.modules.supply_chain` at top level with no
+# cycle, and `unbounded_consumption.py` has no back-import of `api` --
+# a top-level import here is safe for the same reason.
+from llmsec.modules.unbounded_consumption import _DEFAULT_FLOOD_PROBE_CAP
 from llmsec.orchestrator import ScanOrchestrator
+from llmsec.plugins.base import BaseModule
 from llmsec.plugins.registry import BUILTIN_MODULE_IDS, PluginRegistry
 from llmsec.reporting.json_reporter import JsonReporter
 from llmsec.scoring.engine import (
@@ -82,6 +97,112 @@ _NER_NOT_INSTALLED_LIMITATION_NOTE = (
     "pii_exfiltration did not run because the `[pii-ner]` extra is not "
     "installed. Findings from this run reflect only the canary, regex/Luhn, "
     "and judge tiers; install `[pii-ner]` for unstructured-PII coverage."
+)
+
+# Phase 6 (06-01, D-06): honest-degradation notes for supply_chain's
+# standalone CVE/SBOM audit, in the same voice as
+# `_NER_NOT_INSTALLED_LIMITATION_NOTE` above. Each pairs with a stable
+# `case_id` sentinel `supply_chain.run_standalone_audit()` yields --
+# `_scan_limitations()` below keys off those exact case_ids.
+_SUPPLY_CHAIN_MANIFEST_MISSING_NOTE = (
+    "The CVE/SBOM dependency audit for supply_chain did not run because no "
+    "`supply_chain_manifest_path` was configured (or the configured path "
+    "could not be read). This scan evaluated no dependency manifest; "
+    "configure `supply_chain_manifest_path` in llmsec.config.yaml to enable it."
+)
+_SUPPLY_CHAIN_EXTRA_NOT_INSTALLED_NOTE = (
+    "The CVE/SBOM dependency audit for supply_chain did not run because the "
+    "optional `[supply-chain]` extra is not installed. Install it with "
+    '`pip install ".[supply-chain]"` for CVE/SBOM coverage.'
+)
+_SUPPLY_CHAIN_OSV_UNREACHABLE_NOTE = (
+    "The CVE/SBOM dependency audit for supply_chain could not reach the "
+    "OSV.dev vulnerability database. Findings from this run do not reflect "
+    "any dependency-vulnerability check; rerun once connectivity is restored."
+)
+# Phase 6 (06-01, D-11): the structural low-confidence/heuristic caveat for
+# data_poisoning (MOD-07). Placed here now so `_scan_limitations()` can
+# reference it from its first commit, even though data_poisoning itself
+# ships in a later plan this phase.
+_POISONING_HEURISTIC_ONLY_NOTE = (
+    "data_poisoning cannot detect an untriggered backdoor at all -- it can "
+    "only observe a behavioral shift when a specific trigger phrase is "
+    "actually probed. Its findings are heuristic behavioral indicators, "
+    "capped below full-compromise confidence; a clean result from this "
+    "module is NOT evidence the target model is unpoisoned."
+)
+# Phase 7 (07-03, D-08/T-07-12): the honest-degradation caveat for
+# unbounded_consumption's flood-class dispatch path. The cap value is
+# imported from the module's own constant (above), never hand-copied, so
+# the two can never drift. A clean consumption report must never read as
+# an exhaustively-probed one -- only a capped subset of flood-class probes
+# was ever dispatched (D-08's scan-itself-never-becomes-the-attack
+# constraint), and the token/latency thresholds applied are documented
+# starting heuristics, not calibrated universal values.
+_CONSUMPTION_FLOOD_CAP_NOTE = (
+    f"unbounded_consumption dispatched at most {_DEFAULT_FLOOD_PROBE_CAP} "
+    "flood-class consumption probes this run, capped so the scan itself "
+    "does not become a denial-of-wallet event against the scanned target "
+    "(D-08). The token and latency thresholds applied are documented "
+    "starting heuristics, not calibrated universal values -- tune them via "
+    "consumption_token_threshold/consumption_latency_threshold_ms in "
+    "llmsec.config.yaml."
+)
+
+# Phase 8 (08-01, D-04/D-07 simulated-context framing): the honest-degradation
+# caveat for vector_embedding_weaknesses (MOD-10). No real vector database,
+# embedding index, or retrieval pipeline is ever exercised -- every
+# "retrieved chunk" this module probes with is simulated inline in the
+# prompt. Mirrors _CONSUMPTION_FLOOD_CAP_NOTE's declarative voice and
+# module_ids-keyed shape exactly (T-02-33 fixed-order guarantee).
+_VECTOR_CONTEXT_SIMULATED_NOTE = (
+    "vector_embedding_weaknesses did not exercise a real vector database, "
+    "embedding index, or retrieval pipeline -- every retrieved chunk in "
+    "this run's probes was simulated inline in the prompt. Index-level "
+    "exposures (poisoned or adversarially-similar embeddings, cross-tenant "
+    "index access, write access to the vector store) were therefore not "
+    "tested; a clean result from this module is not a clearance of the "
+    "retrieval stack."
+)
+
+# Phase 8 (08-04, D-07/T-08-18): the honest-degradation caveat for
+# excessive_agency (MOD-11). No real tool execution and no real permission
+# enforcement is exercised anywhere -- every finding describes what the
+# target SAID it could do, had done, or would do, never what it actually
+# did. Mirrors _VECTOR_CONTEXT_SIMULATED_NOTE's declarative voice and
+# module_ids-keyed shape exactly (T-02-33 fixed-order guarantee). Also
+# discloses the generate_cases() system-prompt-controllability fallback
+# (Task 1): when the configured target does not let the framework set the
+# system prompt, a permissions-class probe's declared boundary is stated
+# in the conversation instead, and a target may weight that differently
+# from a boundary stated in its own system prompt.
+_EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE = (
+    "excessive_agency did not exercise any real tool execution or real "
+    "permission enforcement -- every finding describes what the target "
+    "SAID it could do, had done, or would do, never what it actually did. "
+    "A clean result from this module is not evidence that access control "
+    "is enforced anywhere in the integration. Where the configured target "
+    "does not let the framework set the system prompt, a permissions-class "
+    "probe's declared boundary was stated in the conversation instead of "
+    "in the system prompt, and a target may weight an in-conversation "
+    "boundary differently from one stated in its system prompt."
+)
+
+# Phase 9 (09-02, D-02/honest-degradation): the honest-degradation caveat for
+# misinformation (MOD-12). Every ground truth this module probes with is a
+# self-contained fiction established inside each probe prompt, deliberately
+# so that findings never depend on the judge's own knowledge cutoff and the
+# corpus never seeds real-world misinformation. Mirrors
+# _EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE's declarative voice and
+# module_ids-keyed shape exactly (T-02-33 fixed-order guarantee).
+_MISINFORMATION_FICTIONAL_GROUND_TRUTH_NOTE = (
+    "misinformation tested the target's fidelity to a self-contained "
+    "fictional ground truth established inside each probe prompt, not the "
+    "target's real-world factual accuracy. No real, identifiable person, "
+    "company, product, organisation, or event was ever asserted about, so "
+    "no finding from this module is evidence about any real entity. A "
+    "clean result from this module is not a clearance of the target's "
+    "factual reliability on real-world questions."
 )
 
 # D-93/honest-degradation: the report-level caveat for a `--deep` run whose
@@ -194,6 +315,32 @@ def _scan_limitations(
        `run_scan()` deep-mode branch's own honest-degradation disclosure
        (D-93), computed independently of both the findings list and the
        case log for the same reason as #4.
+    7. Supply-chain manifest-missing caveat (D-06), when any case-log
+       entry's `case_id` equals `AUDIT_CASE_ID_MANIFEST_MISSING`.
+    8. Supply-chain extra-not-installed caveat (D-06), when any case-log
+       entry's `case_id` equals `AUDIT_CASE_ID_EXTRA_MISSING`.
+    9. Supply-chain OSV-unreachable caveat (D-06), when any case-log
+       entry's `case_id` equals `AUDIT_CASE_ID_OSV_UNREACHABLE`.
+    10. Slopsquatting index-staleness caveat, when
+        `index_snapshot_limitation_note()` is not `None` AND at least one
+        case-log entry's `case_id` starts with `SLOPSQUATTING_CASE_ID_PREFIX`.
+    11. Poisoning heuristic-only caveat (D-11), when `"data_poisoning"` is
+        in `module_ids`.
+    12. Consumption flood-probe-cap/heuristic-thresholds caveat (D-08/
+        T-07-12), when `"unbounded_consumption"` is in `module_ids` --
+        mirrors condition 11's `module_ids`-keyed shape exactly.
+    13. Vector-context simulated-retrieval caveat (`_VECTOR_CONTEXT_SIMULATED_NOTE`,
+        D-04/D-07, ROADMAP SC#3), when `"vector_embedding_weaknesses"` is in
+        `module_ids` -- mirrors condition 11's/12's `module_ids`-keyed shape
+        exactly.
+    14. Excessive-agency no-real-enforcement caveat
+        (`_EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE`, D-07, ROADMAP SC#3), when
+        `"excessive_agency"` is in `module_ids` -- mirrors condition 11's/
+        12's/13's `module_ids`-keyed shape exactly.
+    15. Misinformation fictional-ground-truth caveat
+        (`_MISINFORMATION_FICTIONAL_GROUND_TRUTH_NOTE`, D-02, RESEARCH Open
+        Question #2), when `"misinformation"` is in `module_ids` -- mirrors
+        condition 11's/12's/13's/14's `module_ids`-keyed shape exactly.
 
     Every parameter here is a value the caller has already computed and
     passes explicitly — this function reads no module-level state.
@@ -219,6 +366,36 @@ def _scan_limitations(
     if deep_mode_failed:
         limitations.append(_DEEP_MODE_FAILED_LIMITATION_NOTE)
 
+    if any(result.case_id == AUDIT_CASE_ID_MANIFEST_MISSING for result in case_log):
+        limitations.append(_SUPPLY_CHAIN_MANIFEST_MISSING_NOTE)
+
+    if any(result.case_id == AUDIT_CASE_ID_EXTRA_MISSING for result in case_log):
+        limitations.append(_SUPPLY_CHAIN_EXTRA_NOT_INSTALLED_NOTE)
+
+    if any(result.case_id == AUDIT_CASE_ID_OSV_UNREACHABLE for result in case_log):
+        limitations.append(_SUPPLY_CHAIN_OSV_UNREACHABLE_NOTE)
+
+    snapshot_note = index_snapshot_limitation_note()
+    if snapshot_note is not None and any(
+        result.case_id.startswith(SLOPSQUATTING_CASE_ID_PREFIX) for result in case_log
+    ):
+        limitations.append(snapshot_note)
+
+    if "data_poisoning" in module_ids:
+        limitations.append(_POISONING_HEURISTIC_ONLY_NOTE)
+
+    if "unbounded_consumption" in module_ids:
+        limitations.append(_CONSUMPTION_FLOOD_CAP_NOTE)
+
+    if "vector_embedding_weaknesses" in module_ids:
+        limitations.append(_VECTOR_CONTEXT_SIMULATED_NOTE)
+
+    if "excessive_agency" in module_ids:
+        limitations.append(_EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE)
+
+    if "misinformation" in module_ids:
+        limitations.append(_MISINFORMATION_FICTIONAL_GROUND_TRUTH_NOTE)
+
     # De-duplicate while preserving first-seen order.
     seen: set[str] = set()
     deduped: list[str] = []
@@ -227,6 +404,67 @@ def _scan_limitations(
             seen.add(item)
             deduped.append(item)
     return deduped
+
+
+async def _run_standalone_audits(
+    modules: dict[str, BaseModule], context: ScanContext
+) -> list[tuple[str, EvalResult]]:
+    """Gather every loaded module's `run_standalone_audit()` results (Phase
+    6, 06-01, MOD-06's standalone-audit path).
+
+    `asyncio.gather()`-ed alongside (not inside) `ScanOrchestrator.run()` in
+    `run_scan()` below, since the two result sources are independent — no
+    module's standalone-audit output depends on any other module's
+    request/response results, or vice versa.
+
+    Per-module catch-log-continue containment, identical in shape to
+    `ScanOrchestrator.run()`'s own `generate_cases()` failure handling
+    (T-01-18): one module's `run_standalone_audit()` raising must never
+    cancel a sibling module's audit, and must never propagate out of this
+    helper and cancel the orchestrator's own `asyncio.gather` running
+    concurrently.
+    """
+    results: list[tuple[str, EvalResult]] = []
+    for module_id, module in modules.items():
+        try:
+            async for eval_result in module.run_standalone_audit(context):
+                results.append((module_id, eval_result))
+        except Exception as exc:
+            logger.error(
+                "run_standalone_audit() failed for module %r; skipping remaining "
+                "audit results from this module: %s", module_id, exc,
+            )
+            continue
+    return results
+
+
+async def _run_direct_probes(
+    modules: dict[str, BaseModule], context: ScanContext, adapter: TargetAdapter
+) -> list[tuple[str, EvalResult]]:
+    """Gather every loaded module's `run_direct_probe()` results (Phase 7,
+    07-01, MOD-09's retry-exempt dispatch path).
+
+    `asyncio.gather()`-ed alongside `ScanOrchestrator.run()` and
+    `_run_standalone_audits()` in `run_scan()` below -- all three result
+    sources are independent.
+
+    Same per-module catch-log-continue containment as
+    `_run_standalone_audits()` (T-01-18): one module's `run_direct_probe()`
+    raising must never cancel a sibling module's probes or the
+    orchestrator's own concurrent gather.
+    """
+    results: list[tuple[str, EvalResult]] = []
+    for module_id, module in modules.items():
+        try:
+            async for eval_result in module.run_direct_probe(context, adapter):
+                results.append((module_id, eval_result))
+        except Exception as exc:
+            logger.error(
+                "run_direct_probe() failed for module %r; skipping remaining "
+                "probes from this module: %s", module_id, exc,
+            )
+            continue
+    return results
 
 
 def _redact_protecting_canary_values(evidence_text: str, canary_values: tuple[str, ...]) -> str:
@@ -305,6 +543,18 @@ async def run_scan(config: ScanConfig, bypass_flag: bool = False) -> ScanReport:
                 # forwarded so a configured judge_api_key_env is actually
                 # used to resolve the judge's API key.
                 "judge_api_key_env": config.judge_api_key_env,
+                # Phase 6 (06-01): both new keys are threaded into the
+                # shared dict for every module id -- `load_allowed()`'s
+                # `accepted_params` filter drops whichever key a given
+                # module's `__init__` doesn't declare, so this stays safe
+                # even though only one module each will actually accept it.
+                "supply_chain_manifest_path": config.supply_chain_manifest_path,
+                "poisoning_trigger_overlay_path": config.poisoning_trigger_overlay_path,
+                # Phase 7 (07-01, D-05): same threading discipline as the two
+                # keys above -- `accepted_params` drops these for every
+                # module except `unbounded_consumption`.
+                "consumption_token_threshold": config.consumption_token_threshold,
+                "consumption_latency_threshold_ms": config.consumption_latency_threshold_ms,
             }
             for module_id in effective_module_ids
         }
@@ -322,7 +572,18 @@ async def run_scan(config: ScanConfig, bypass_flag: bool = False) -> ScanReport:
             supports_multi_turn=adapter.supports_multi_turn,
         )
         orchestrator = ScanOrchestrator(adapter, modules, max_concurrency=config.max_concurrency)
-        results = await orchestrator.run(context)
+        # Phase 6 (06-01): the standalone-audit path (`_run_standalone_audits()`)
+        # is gathered ALONGSIDE (not inside) `orchestrator.run()` -- the two
+        # result sources are independent, so this concurrent gather changes
+        # nothing about `orchestrator.run()`'s own behavior or timing.
+        # Phase 7 (07-01): the direct-probe path (`_run_direct_probes()`) is
+        # gathered as a third, equally independent member.
+        # `orchestrator.py` itself is byte-for-byte unchanged (D-73).
+        results, audit_results, direct_probe_results = await asyncio.gather(
+            orchestrator.run(context),
+            _run_standalone_audits(modules, context),
+            _run_direct_probes(modules, context, adapter),
+        )
 
         # D-93: the deep-mode attacker team is a NEW ADDITIVE LAYER that
         # runs strictly AFTER ScanOrchestrator.run() returns -- never
@@ -374,6 +635,17 @@ async def run_scan(config: ScanConfig, bypass_flag: bool = False) -> ScanReport:
                 )
                 deep_mode_failed = True
                 campaign_result = None
+
+        # Phase 6 (06-01): standalone-audit results merge in AFTER the
+        # entire deep-mode block, immediately BEFORE the findings loop --
+        # `static_results` (above) and `run_attacker_campaign(static_results=...)`
+        # both keep receiving exactly the orchestrator's own output,
+        # untouched by this merge, preserving D-93's guarantee.
+        # Phase 7 (07-01): direct-probe (flood-class) results merge in at
+        # the SAME point, for the SAME reason -- a flood-class case_id must
+        # never enter the deep-mode Strategist's mutation-selection pool
+        # (Pitfall 3, 07-RESEARCH.md).
+        results = results + audit_results + direct_probe_results
 
         findings: list[Finding] = []
         case_log: list[EvalResult] = []

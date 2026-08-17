@@ -9,7 +9,18 @@ import pytest
 import yaml
 
 from llmsec.payloads import CORPUS_DIR_PACKAGE, load_corpus
-from llmsec.payloads.schema import CORPUS_SCHEMA_VERSION, PayloadEntry, TechniqueFamily
+from llmsec.payloads.schema import (
+    CORPUS_SCHEMA_VERSION,
+    AgencyClass,
+    ConsumptionTechniqueVector,
+    OutputVulnerabilityClass,
+    PayloadEntry,
+    PiiAttackVector,
+    PoisoningTechniqueVector,
+    SupplyChainTechniqueVector,
+    TechniqueFamily,
+    VectorContextTechniqueVector,
+)
 
 
 def _write_corpus(tmp_path: Path, data: dict, name: str = "test_corpus") -> Path:
@@ -305,6 +316,86 @@ class TestPromptInjectionCorpusContent:
             assert "{canary}" in text, entry.id
 
 
+class TestPoisoningAndSupplyChainTaxonomies:
+    """06-02-PLAN.md Task 1: `PoisoningTechniqueVector`/`SupplyChainTechniqueVector`
+    exact member counts/value sets, disjointness against all five taxonomies,
+    and `PayloadEntry.technique_family`'s fourth/fifth widening."""
+
+    def test_poisoning_technique_vector_has_exactly_seven_values(self):
+        assert {p.value for p in PoisoningTechniqueVector} == {
+            "rare_token_trigger",
+            "syntactic_trigger",
+            "style_trigger",
+            "semantic_phrase_trigger",
+            "instruction_backdoor_trigger",
+            "sentiment_flip_trigger",
+            "refusal_suppression_trigger",
+        }
+
+    def test_supply_chain_technique_vector_has_exactly_six_values(self):
+        assert {s.value for s in SupplyChainTechniqueVector} == {
+            "dependency_recommendation",
+            "import_completion",
+            "install_command_elicitation",
+            "version_pinning_elicitation",
+            "transitive_dependency_elicitation",
+            "ecosystem_migration_elicitation",
+        }
+
+    def test_all_five_taxonomies_are_disjoint(self):
+        """The union of all five enums' values has no duplicates -- the
+        taxonomies are provably disjoint (CLAUDE.md convention)."""
+        all_values = [
+            member.value
+            for enum_cls in (
+                TechniqueFamily,
+                PiiAttackVector,
+                OutputVulnerabilityClass,
+                PoisoningTechniqueVector,
+                SupplyChainTechniqueVector,
+            )
+            for member in enum_cls
+        ]
+        assert len(all_values) == len(set(all_values))
+
+    @pytest.mark.parametrize("member", list(PoisoningTechniqueVector))
+    def test_payload_entry_validates_for_poisoning_technique_vector_member(self, member):
+        entry = PayloadEntry(
+            id="POISON-001",
+            technique_family=member,
+            description="d",
+            prompt="p",
+            remediation="r" * 20,
+        )
+        assert entry.technique_family == member
+
+    @pytest.mark.parametrize("member", list(SupplyChainTechniqueVector))
+    def test_payload_entry_validates_for_supply_chain_technique_vector_member(self, member):
+        entry = PayloadEntry(
+            id="SLOP-001",
+            technique_family=member,
+            description="d",
+            prompt="p",
+            remediation="r" * 20,
+        )
+        assert entry.technique_family == member
+
+    def test_payload_entry_still_validates_for_all_three_pre_existing_enums(self):
+        for member in (
+            TechniqueFamily.INSTRUCTION_OVERRIDE,
+            PiiAttackVector.CREDENTIAL_PROBING,
+            OutputVulnerabilityClass.XSS_REFLECTED,
+        ):
+            entry = PayloadEntry(
+                id="X-001",
+                technique_family=member,
+                description="d",
+                prompt="p",
+                remediation="r" * 20,
+            )
+            assert entry.technique_family == member
+
+
 class TestInsecureOutputCorpusContent:
     """Loader-level content assertion for the shipped `insecure_output.yaml`
     corpus (D-42/D-45, requirement MOD-04, 04-01/04-03) -- the full
@@ -316,3 +407,107 @@ class TestInsecureOutputCorpusContent:
         entries = load_corpus("insecure_output")
         assert len(entries) == 25
         assert all(isinstance(entry, PayloadEntry) for entry in entries)
+
+
+class TestAgencyClassAndAdditiveFields:
+    """08-02-PLAN.md Task 1: `AgencyClass`'s exact member set, disjointness
+    against all eight taxonomies, and `PayloadEntry`'s eighth
+    `technique_family` union widening plus the two new additive-default
+    fields (`declared_permission_boundary`, `planted_claim`)."""
+
+    def test_agency_class_has_exactly_three_values_in_order(self):
+        assert [m.value for m in AgencyClass] == ["functionality", "permissions", "autonomy"]
+
+    def test_all_eight_taxonomies_are_pairwise_disjoint(self):
+        """The union of all eight enums' values has no duplicates -- the
+        taxonomies are provably disjoint (CLAUDE.md convention)."""
+        enums = (
+            TechniqueFamily,
+            PiiAttackVector,
+            OutputVulnerabilityClass,
+            PoisoningTechniqueVector,
+            SupplyChainTechniqueVector,
+            ConsumptionTechniqueVector,
+            VectorContextTechniqueVector,
+            AgencyClass,
+        )
+        value_sets = [{member.value for member in enum_cls} for enum_cls in enums]
+        assert sum(len(v) for v in value_sets) == len(set().union(*value_sets))
+
+    @pytest.mark.parametrize("member", list(AgencyClass))
+    def test_payload_entry_validates_for_agency_class_member(self, member):
+        entry = PayloadEntry(
+            id="AGENCY-001",
+            technique_family=member,
+            description="d",
+            prompt="p",
+            remediation="r" * 20,
+        )
+        assert entry.technique_family == member
+
+    def test_payload_entry_defaults_new_fields_to_none(self):
+        entry = PayloadEntry(
+            id="AGENCY-001",
+            technique_family=AgencyClass.PERMISSIONS,
+            description="d",
+            prompt="p",
+            remediation="r" * 20,
+        )
+        assert entry.declared_permission_boundary is None
+        assert entry.planted_claim is None
+
+    def test_payload_entry_accepts_both_new_fields_explicitly(self):
+        entry = PayloadEntry(
+            id="AGENCY-001",
+            technique_family=AgencyClass.PERMISSIONS,
+            description="d",
+            prompt="p",
+            remediation="r" * 20,
+            declared_permission_boundary="You may only read files, never write them.",
+        )
+        assert entry.declared_permission_boundary == "You may only read files, never write them."
+        assert entry.planted_claim is None
+
+        entry2 = PayloadEntry(
+            id="CTX-001",
+            technique_family=VectorContextTechniqueVector.RETRIEVED_CONTENT_OVER_TRUST,
+            description="d",
+            prompt="p",
+            remediation="r" * 20,
+            planted_claim="The Eiffel Tower is located in Berlin.",
+        )
+        assert entry2.planted_claim == "The Eiffel Tower is located in Berlin."
+        assert entry2.declared_permission_boundary is None
+
+    @pytest.mark.parametrize(
+        "corpus_name",
+        [
+            # `system_prompt_leakage` (LLM07) predates the YAML-corpus
+            # pattern (D-18/D-19) -- its LEAK-* payloads are hardcoded in
+            # `system_prompt_leakage.py`, never loaded via `load_corpus()`
+            # -- so it has no YAML file and is excluded here.
+            "prompt_injection",
+            "pii_exfiltration",
+            "insecure_output",
+            "supply_chain",
+            "data_poisoning",
+            "unbounded_consumption",
+            # `vector_embedding_weaknesses` is deliberately excluded here
+            # (Rule 1 auto-fix, 08-03): as of plan 08-01/08-02 this corpus
+            # had no `retrieved_content_over_trust` entries yet, so
+            # `planted_claim` was unset on every entry. Plan 08-03 adds
+            # `OVERTRUST-*` entries that legitimately set `planted_claim` --
+            # `TestOverTrustCorpus.test_family2_entries_have_planted_claim_
+            # appearing_verbatim_in_prompt` (tests/test_vector_embedding_
+            # weaknesses.py) is this corpus's own equivalent assertion, and
+            # `TestOverTrustCorpus.test_family1_entries_leave_planted_claim_
+            # unset` still pins the field's `None` default for every
+            # `cross_document_leakage` entry.
+        ],
+    )
+    def test_pre_existing_corpus_still_loads_with_new_fields_unset(self, corpus_name):
+        entries = load_corpus(corpus_name)
+        assert len(entries) > 0
+        for entry in entries:
+            assert entry.declared_permission_boundary is None
+            assert entry.planted_claim is None

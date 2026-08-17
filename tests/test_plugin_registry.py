@@ -13,6 +13,8 @@ import logging
 from types import SimpleNamespace
 from typing import AsyncIterator
 
+import pytest
+
 from llmsec.models import EvalResult, ScanContext, TargetResponse, TestCase
 from llmsec.plugins.base import BaseModule
 from llmsec.plugins.registry import BUILTIN_MODULE_IDS, PluginRegistry
@@ -310,6 +312,40 @@ def test_prompt_injection_discoverable():
     assert cls.owasp_ref == "LLM01:2025"
 
 
+def test_supply_chain_discoverable():
+    """`supply_chain` is discoverable via the real installed entry points,
+    as a class (never instantiated), with the right identity (06-01)."""
+    from llmsec.modules.supply_chain import SupplyChainModule
+
+    registry = PluginRegistry()
+    discovered = registry.discover_all()
+
+    assert "supply_chain" in discovered
+    cls = discovered["supply_chain"]
+    assert isinstance(cls, type)
+    assert cls is SupplyChainModule
+    assert cls.id == "supply_chain"
+    assert cls.owasp_ref == "LLM03:2025"
+    assert cls.uses_attacker_llm is False
+
+
+def test_data_poisoning_discoverable():
+    """`data_poisoning` is discoverable via the real installed entry points,
+    as a class (never instantiated), with the right identity (06-05)."""
+    from llmsec.modules.data_poisoning import DataPoisoningModule
+
+    registry = PluginRegistry()
+    discovered = registry.discover_all()
+
+    assert "data_poisoning" in discovered
+    cls = discovered["data_poisoning"]
+    assert isinstance(cls, type)
+    assert cls is DataPoisoningModule
+    assert cls.id == "data_poisoning"
+    assert cls.owasp_ref == "LLM04:2025"
+    assert cls.uses_attacker_llm is True
+
+
 def test_discover_all_real_builtins_returns_classes_not_instances():
     """Both real built-ins come back as classes from discover_all(),
     preserving the D-10 discovery/instantiation split against the actual
@@ -383,7 +419,17 @@ def test_load_allowed_none_loads_both_real_builtins():
     Updated in 03-01 (Rule 1 auto-fix) from a two-member set to three:
     registering `pii_exfiltration` (D-39) grows `BUILTIN_MODULE_IDS`.
     Updated again in 04-01 (Rule 1 auto-fix) from three to four:
-    registering `insecure_output` (D-42) grows it further."""
+    registering `insecure_output` (D-42) grows it further. Updated again in
+    06-01 (Rule 1 auto-fix) from four to five: registering `supply_chain`
+    grows it further. Updated again in 06-05 (Rule 1 auto-fix) from five to
+    six: registering `data_poisoning` grows it further. Updated again in
+    07-01 (Rule 1 auto-fix) from six to seven: registering
+    `unbounded_consumption` grows it further. Updated again in 08-01 (Rule 1
+    auto-fix) from seven to eight: registering `vector_embedding_weaknesses`
+    grows it further. Updated again in 08-04 (Rule 1 auto-fix) from eight to
+    nine: registering `excessive_agency` grows it further. Updated again in
+    09-01 (Rule 1 auto-fix) from nine to ten: registering `misinformation`
+    grows it further."""
     registry = PluginRegistry()
     loaded = registry.load_allowed(None)
 
@@ -392,4 +438,117 @@ def test_load_allowed_none_loads_both_real_builtins():
         "prompt_injection",
         "pii_exfiltration",
         "insecure_output",
+        "supply_chain",
+        "data_poisoning",
+        "unbounded_consumption",
+        "vector_embedding_weaknesses",
+        "excessive_agency",
+        "misinformation",
     }
+
+
+# --- Plan 09-03: misinformation discoverability + CLI-05 selection matrix ---
+# These tests deliberately do NOT monkeypatch `entry_points` — same real
+# installed-distribution discipline as the section above.
+
+
+def test_misinformation_discoverable():
+    """`misinformation` is discoverable via the real installed entry
+    points, as a class (never instantiated), with the right identity
+    (09-01, MOD-12/CLI-05)."""
+    from llmsec.modules.misinformation import MisinformationModule
+
+    registry = PluginRegistry()
+    discovered = registry.discover_all()
+
+    assert "misinformation" in discovered
+    cls = discovered["misinformation"]
+    assert isinstance(cls, type)
+    assert cls is MisinformationModule
+    assert cls.id == "misinformation"
+    assert cls.owasp_ref == "LLM09:2025"
+    assert cls.uses_attacker_llm is True
+
+
+def test_load_allowed_misinformation_alone_excludes_others(monkeypatch):
+    """Allowlisting only `misinformation` loads exactly that module — at
+    least two other real built-ins are never instantiated (ROADMAP SC#2,
+    the "alone" case)."""
+    import llmsec.modules.misinformation as misinfo_mod
+    import llmsec.modules.prompt_injection as pi_mod
+    import llmsec.modules.system_prompt_leakage as spl_mod
+
+    injection_instantiated = False
+    leakage_instantiated = False
+    original_injection_init = pi_mod.PromptInjectionModule.__init__
+    original_leakage_init = spl_mod.SystemPromptLeakageModule.__init__
+
+    def tracking_injection_init(self, *args, **kwargs):
+        nonlocal injection_instantiated
+        injection_instantiated = True
+        original_injection_init(self, *args, **kwargs)
+
+    def tracking_leakage_init(self, *args, **kwargs):
+        nonlocal leakage_instantiated
+        leakage_instantiated = True
+        original_leakage_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(pi_mod.PromptInjectionModule, "__init__", tracking_injection_init)
+    monkeypatch.setattr(spl_mod.SystemPromptLeakageModule, "__init__", tracking_leakage_init)
+
+    registry = PluginRegistry()
+    loaded = registry.load_allowed(["misinformation"])
+
+    assert set(loaded.keys()) == {"misinformation"}
+    assert isinstance(loaded["misinformation"], misinfo_mod.MisinformationModule)
+    assert injection_instantiated is False
+    assert leakage_instantiated is False
+
+
+def test_load_allowed_misinformation_mixed_with_v1_module():
+    """Allowlisting `misinformation` alongside the v1.0 `prompt_injection`
+    module loads exactly those two, proving a v1.1 module and a v1.0
+    module share one selection mechanism (ROADMAP SC#2, the "mixed" case)."""
+    import llmsec.modules.misinformation as misinfo_mod
+    import llmsec.modules.prompt_injection as pi_mod
+
+    registry = PluginRegistry()
+    loaded = registry.load_allowed(["misinformation", "prompt_injection"])
+
+    assert set(loaded.keys()) == {"misinformation", "prompt_injection"}
+    assert isinstance(loaded["misinformation"], misinfo_mod.MisinformationModule)
+    assert isinstance(loaded["prompt_injection"], pi_mod.PromptInjectionModule)
+
+
+@pytest.mark.parametrize(
+    "module_id",
+    [
+        "supply_chain",
+        "data_poisoning",
+        "unbounded_consumption",
+        "vector_embedding_weaknesses",
+        "excessive_agency",
+        "misinformation",
+    ],
+)
+def test_each_new_v1_1_module_is_independently_selectable(module_id):
+    """CLI-05's full statement is about all six new v1.1 modules, not only
+    the newest — each is independently selectable alone through
+    `load_allowed()`, proven per id rather than inferred from one
+    example."""
+    registry = PluginRegistry()
+    loaded = registry.load_allowed([module_id])
+
+    assert set(loaded.keys()) == {module_id}
+
+
+def test_ten_registered_modules_cover_ten_distinct_owasp_refs():
+    """ROADMAP SC#3: the ten registered modules map to ten distinct
+    `owasp_ref` values — no OWASP category claimed by two modules and none
+    missing."""
+    registry = PluginRegistry()
+    discovered = registry.discover_all()
+
+    assert len(discovered) == 10
+    refs = {cls.owasp_ref for cls in discovered.values()}
+    assert len(refs) == 10

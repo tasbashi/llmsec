@@ -809,3 +809,732 @@ def test_build_adapter_forwards_session_id_fields_to_real_http_app_adapter():
     assert isinstance(adapter, api_module.HttpAppAdapter)
     assert adapter.session_id_path == "session_id"
     assert adapter.supports_multi_turn is True
+
+
+# --- Phase 6 (06-01): _run_standalone_audits() containment + determinism ---
+
+
+class _RaisingAuditModule:
+    """`run_standalone_audit()` raises immediately -- simulates one
+    module's audit failing (T-01-18)."""
+
+    id = "raising_audit_module"
+
+    async def run_standalone_audit(self, context):
+        raise RuntimeError("audit boom")
+        yield  # pragma: no cover — unreachable, keeps this an async generator
+
+
+class _YieldingAuditModule:
+    """`run_standalone_audit()` yields one real result."""
+
+    id = "yielding_audit_module"
+
+    async def run_standalone_audit(self, context):
+        yield EvalResult(
+            case_id="AUDIT-OK",
+            verdict=Verdict.UNCERTAIN,
+            confidence=0.0,
+            evidence="audit ran fine",
+            detection_layer="audit",
+        )
+
+
+async def test_run_standalone_audits_contains_one_module_failure_sibling_still_returns():
+    """T-01-18: one module's run_standalone_audit() raising must never
+    cancel a sibling module's audit results, and _run_standalone_audits()
+    itself must never raise."""
+    modules = {
+        "raising_audit_module": _RaisingAuditModule(),
+        "yielding_audit_module": _YieldingAuditModule(),
+    }
+    context = ScanContext(judge_model="openai/gpt-4o-mini", judge_api_key_env="")
+
+    results = await api_module._run_standalone_audits(modules, context)
+
+    assert len(results) == 1
+    module_id, eval_result = results[0]
+    assert module_id == "yielding_audit_module"
+    assert eval_result.case_id == "AUDIT-OK"
+
+
+def test_scan_limitations_determinism_including_supply_chain_conditions():
+    """T-02-33: two `_scan_limitations()` calls over the same
+    module_ids/case_log produce byte-identical lists, including when
+    conditions 7-11 (supply-chain/poisoning) fire."""
+    from llmsec.modules.supply_chain import (
+        AUDIT_CASE_ID_EXTRA_MISSING,
+        AUDIT_CASE_ID_MANIFEST_MISSING,
+        AUDIT_CASE_ID_OSV_UNREACHABLE,
+    )
+
+    module_ids = ["supply_chain", "data_poisoning"]
+    case_log = [
+        EvalResult(
+            case_id=AUDIT_CASE_ID_MANIFEST_MISSING,
+            verdict=Verdict.UNCERTAIN,
+            confidence=0.0,
+            evidence="no manifest",
+            detection_layer="audit",
+        ),
+        EvalResult(
+            case_id=AUDIT_CASE_ID_EXTRA_MISSING,
+            verdict=Verdict.UNCERTAIN,
+            confidence=0.0,
+            evidence="no extra",
+            detection_layer="audit",
+        ),
+        EvalResult(
+            case_id=AUDIT_CASE_ID_OSV_UNREACHABLE,
+            verdict=Verdict.UNCERTAIN,
+            confidence=0.0,
+            evidence="osv unreachable",
+            detection_layer="audit",
+        ),
+    ]
+
+    first = api_module._scan_limitations(module_ids, case_log)
+    second = api_module._scan_limitations(module_ids, case_log)
+
+    assert first == second
+    assert api_module._SUPPLY_CHAIN_MANIFEST_MISSING_NOTE in first
+    assert api_module._SUPPLY_CHAIN_EXTRA_NOT_INSTALLED_NOTE in first
+    assert api_module._SUPPLY_CHAIN_OSV_UNREACHABLE_NOTE in first
+    assert api_module._POISONING_HEURISTIC_ONLY_NOTE in first
+
+
+def test_audit_detection_layer_finding_round_trips_json_and_renders_markdown(tmp_path):
+    """A `Finding` carrying `detection_layer="audit"` round-trips through
+    `JsonReporter` and renders in the Markdown template without any
+    reporter change -- proves the additive `Literal` widening needed no
+    downstream branching."""
+    import asyncio
+
+    from llmsec.models import Finding, ScanReport
+    from llmsec.reporting.json_reporter import JsonReporter, load_report
+    from llmsec.reporting.markdown_reporter import MarkdownReporter
+
+    finding = Finding(
+        case_id="SUPPLY-CHAIN-AUDIT-MANIFEST-MISSING",
+        technique_id="SUPPLY-CHAIN-AUDIT-MANIFEST-MISSING",
+        verdict=Verdict.UNCERTAIN,
+        severity="low",
+        owasp_ref="LLM03:2025",
+        evidence="no manifest configured",
+        remediation="configure supply_chain_manifest_path",
+        detection_layer="audit",
+    )
+    report = ScanReport(
+        scan_id="audit-round-trip",
+        target_summary="raw_llm target, model=gpt-4o-mini",
+        module_ids=["supply_chain"],
+        findings=[finding],
+        case_log=[],
+        started_at="2026-08-13T00:00:00Z",
+        completed_at="2026-08-13T00:00:05Z",
+    )
+
+    json_path = asyncio.run(JsonReporter().write(report, tmp_path / "json"))
+    reloaded = load_report(json_path)
+    assert reloaded.findings[0].detection_layer == "audit"
+
+    md_path = asyncio.run(MarkdownReporter().write(report, tmp_path / "md"))
+    assert "audit" in md_path.read_text()
+
+
+# --- Phase 7 (07-03): direct-probe deep-mode exclusion + containment ----------
+
+
+class TestDirectProbeResultsExcludedFromDeepMode:
+    """MOD-09/T-07-09: a flood-class case id can never reach the deep-mode
+    Strategist's mutation-selection pool, via either of two independent
+    barriers -- structural (`generate_cases()` never yields one, so
+    `attacker/runner.py::_rebuild_case_by_id()` cannot build one into the
+    mutation pool) and ordering (`direct_probe_results` merges into
+    `results` only after `static_results` is captured)."""
+
+    async def test_generate_cases_disjoint_from_flood_class_ids(self):
+        """Barrier one (structural, primary)."""
+        from llmsec.modules.unbounded_consumption import UnboundedConsumptionModule
+
+        module = UnboundedConsumptionModule()
+        context = ScanContext(judge_model="openai/gpt-4o-mini", judge_api_key_env="")
+        case_ids = {case.case_id async for case in module.generate_cases(context)}
+        flood_ids = {entry.id for entry in module._flood_entries()}
+
+        assert case_ids.isdisjoint(flood_ids)
+
+    async def test_deep_mode_static_results_exclude_flood_class_ids_but_case_log_includes_them(
+        self, tmp_path, monkeypatch
+    ):
+        """Barrier two (ordering): `run_attacker_campaign` is monkeypatched
+        to record the `static_results` it actually received. No flood-class
+        case id may appear there, while the final `report.case_log` DOES
+        contain the flood-class results -- that asserted asymmetry is the
+        merge-ordering guarantee."""
+        from llmsec.attacker.config import AttackerConfig
+        from llmsec.attacker.runner import CampaignResult
+        from llmsec.modules.unbounded_consumption import UnboundedConsumptionModule
+
+        module = UnboundedConsumptionModule()
+        flood_ids = {entry.id for entry in module._flood_entries()}
+
+        monkeypatch.setattr(
+            api_module.PluginRegistry,
+            "load_allowed",
+            lambda self, allowlist, module_config=None: {module.id: module},
+        )
+
+        class _AnyCaseAdapter:
+            supports_system_prompt_override = False
+            supports_multi_turn = False
+
+            async def send(self, case):
+                return TargetResponse(
+                    case_id=case.case_id, raw_text="ok", latency_ms=1.0, tokens_used=1
+                )
+
+            async def send_conversation(self, case, stop_when=None):
+                return await self.send(case)
+
+            async def health_check(self):
+                return True
+
+            async def close(self):
+                pass
+
+        monkeypatch.setattr(api_module, "HttpAppAdapter", lambda *a, **k: _AnyCaseAdapter())
+
+        captured: dict = {}
+
+        async def _capturing_campaign(*, config, adapter, modules, static_results, scan_id):
+            captured["static_results"] = static_results
+            return CampaignResult(eval_results=[], lineage={})
+
+        monkeypatch.setattr(api_module, "run_attacker_campaign", _capturing_campaign)
+
+        config = _http_app_config(tmp_path, enabled_modules=["unbounded_consumption"])
+        config.attacker = AttackerConfig(enabled=True, profile="light")
+
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        captured_case_ids = {
+            eval_result.case_id for _module_id, eval_result in captured["static_results"]
+        }
+        assert captured_case_ids.isdisjoint(flood_ids)
+
+        report_case_ids = {result.case_id for result in report.case_log}
+        assert report_case_ids & flood_ids  # flood-class results ARE present post-merge
+
+    def test_static_results_capture_precedes_direct_probe_merge_in_source(self):
+        """Catches a future behavior-preserving reorder of the two lines
+        that would otherwise be invisible to a mocked test (Pitfall 3,
+        07-RESEARCH.md)."""
+        source = inspect.getsource(api_module)
+        static_idx = source.index("static_results = results")
+        merge_idx = source.index("results = results + audit_results + direct_probe_results")
+        assert static_idx < merge_idx
+
+
+class _RaisingDirectProbeModule:
+    """`run_direct_probe()` raises immediately -- simulates one module's
+    direct-probe path failing (T-01-18)."""
+
+    id = "raising_direct_probe_module"
+
+    async def run_direct_probe(self, context, adapter):
+        raise RuntimeError("probe boom")
+        yield  # pragma: no cover — unreachable, keeps this an async generator
+
+
+class _YieldingDirectProbeModule:
+    """`run_direct_probe()` yields two real results."""
+
+    id = "yielding_direct_probe_module"
+
+    async def run_direct_probe(self, context, adapter):
+        yield EvalResult(
+            case_id="PROBE-OK-1",
+            verdict=Verdict.BLOCKED,
+            confidence=0.8,
+            evidence="probe ran fine 1",
+            detection_layer="threshold",
+        )
+        yield EvalResult(
+            case_id="PROBE-OK-2",
+            verdict=Verdict.BLOCKED,
+            confidence=0.8,
+            evidence="probe ran fine 2",
+            detection_layer="threshold",
+        )
+
+
+class _PartialThenRaisingDirectProbeModule:
+    """`run_direct_probe()` yields one result, THEN raises -- the
+    already-yielded result must survive."""
+
+    id = "partial_then_raising_direct_probe_module"
+
+    async def run_direct_probe(self, context, adapter):
+        yield EvalResult(
+            case_id="PROBE-PARTIAL-1",
+            verdict=Verdict.BLOCKED,
+            confidence=0.8,
+            evidence="partial result before raise",
+            detection_layer="threshold",
+        )
+        raise RuntimeError("boom after one yield")
+
+
+class TestRunDirectProbesContainment:
+    """MOD-09/T-07-10: mirrors the existing `_run_standalone_audits()`
+    containment discipline (T-01-18) for `_run_direct_probes()`."""
+
+    async def test_one_module_raising_immediately_sibling_still_returns(self):
+        modules = {
+            "raising_direct_probe_module": _RaisingDirectProbeModule(),
+            "yielding_direct_probe_module": _YieldingDirectProbeModule(),
+        }
+        context = ScanContext(judge_model="openai/gpt-4o-mini", judge_api_key_env="")
+        adapter = _MockAdapter()
+
+        results = await api_module._run_direct_probes(modules, context, adapter)
+
+        assert len(results) == 2
+        result_case_ids = {eval_result.case_id for _module_id, eval_result in results}
+        assert result_case_ids == {"PROBE-OK-1", "PROBE-OK-2"}
+
+    async def test_one_module_yields_then_raises_partial_result_survives(self):
+        modules = {
+            "partial_then_raising_direct_probe_module": _PartialThenRaisingDirectProbeModule(),
+        }
+        context = ScanContext(judge_model="openai/gpt-4o-mini", judge_api_key_env="")
+        adapter = _MockAdapter()
+
+        results = await api_module._run_direct_probes(modules, context, adapter)
+
+        assert len(results) == 1
+        assert results[0][1].case_id == "PROBE-PARTIAL-1"
+
+    async def test_run_scan_survives_run_direct_probe_raising_and_returns_orchestrator_results(
+        self, tmp_path, monkeypatch
+    ):
+        """Drives a full `run_scan()` where the loaded `unbounded_consumption`
+        module's `run_direct_probe()` is monkeypatched to raise, and asserts
+        `run_scan()` still returns a `ScanReport` whose `case_log` contains
+        the orchestrator-path results."""
+        from llmsec.modules.unbounded_consumption import UnboundedConsumptionModule
+
+        module = UnboundedConsumptionModule()
+        baseline_id = module._baseline_entries()[0].id
+
+        async def _raising_run_direct_probe(self, context, adapter):
+            raise RuntimeError("probe boom")
+            yield  # pragma: no cover — unreachable, keeps this an async generator
+
+        monkeypatch.setattr(
+            UnboundedConsumptionModule, "run_direct_probe", _raising_run_direct_probe
+        )
+        monkeypatch.setattr(
+            api_module.PluginRegistry,
+            "load_allowed",
+            lambda self, allowlist, module_config=None: {module.id: module},
+        )
+
+        class _BenignAdapter:
+            supports_system_prompt_override = False
+            supports_multi_turn = False
+
+            async def send(self, case):
+                return TargetResponse(
+                    case_id=case.case_id, raw_text="ok", latency_ms=1.0, tokens_used=1
+                )
+
+            async def send_conversation(self, case, stop_when=None):
+                return await self.send(case)
+
+            async def health_check(self):
+                return True
+
+            async def close(self):
+                pass
+
+        monkeypatch.setattr(api_module, "HttpAppAdapter", lambda *a, **k: _BenignAdapter())
+
+        config = _http_app_config(tmp_path, enabled_modules=["unbounded_consumption"])
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        case_ids = {result.case_id for result in report.case_log}
+        assert baseline_id in case_ids
+
+
+# --- Phase 7 (07-03): consumption flood-probe-cap limitation note -------------
+
+
+class TestConsumptionLimitationNote:
+    """MOD-08/T-07-12 (07-03-PLAN.md Task 2): the flood-probe-cap /
+    heuristic-thresholds caveat -- present exactly when
+    `unbounded_consumption` is loaded, byte-identical across runs, at a
+    fixed position, and rendered in the Markdown report."""
+
+    def test_present_when_unbounded_consumption_loaded(self):
+        limitations = api_module._scan_limitations(["unbounded_consumption"], [])
+        assert api_module._CONSUMPTION_FLOOD_CAP_NOTE in limitations
+
+    def test_absent_when_unbounded_consumption_not_loaded(self):
+        limitations = api_module._scan_limitations(["prompt_injection"], [])
+        assert api_module._CONSUMPTION_FLOOD_CAP_NOTE not in limitations
+
+    def test_note_carries_real_cap_value_not_hand_copied(self):
+        from llmsec.modules.unbounded_consumption import _DEFAULT_FLOOD_PROBE_CAP
+
+        assert str(_DEFAULT_FLOOD_PROBE_CAP) in api_module._CONSUMPTION_FLOOD_CAP_NOTE
+
+    def test_byte_identical_across_repeated_calls_with_note_at_fixed_position(self):
+        """T-02-33: two `_scan_limitations()` calls over the same
+        module_ids produce byte-identical lists, with the new note at a
+        fixed position (last, after the poisoning heuristic-only note)."""
+        module_ids = ["unbounded_consumption", "prompt_injection", "data_poisoning"]
+        first = api_module._scan_limitations(module_ids, [])
+        second = api_module._scan_limitations(module_ids, [])
+
+        assert first == second
+        assert first[-1] == api_module._CONSUMPTION_FLOOD_CAP_NOTE
+
+    async def test_run_scan_with_unbounded_consumption_loaded_includes_note(
+        self, tmp_path, monkeypatch
+    ):
+        module = _MockModule([("c1", Verdict.BLOCKED, "clean")])
+        module.id = "unbounded_consumption"
+        _patch_modules(monkeypatch, module)
+        _patch_http_adapter(monkeypatch)
+        config = _http_app_config(tmp_path, enabled_modules=["unbounded_consumption"])
+
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        assert api_module._CONSUMPTION_FLOOD_CAP_NOTE in report.limitations
+
+    async def test_run_scan_without_unbounded_consumption_omits_note(
+        self, tmp_path, monkeypatch
+    ):
+        module = _MockModule([("c1", Verdict.BLOCKED, "clean")])
+        module.id = "system_prompt_leakage"
+        _patch_modules(monkeypatch, module)
+        _patch_http_adapter(monkeypatch)
+        config = _http_app_config(tmp_path, enabled_modules=["system_prompt_leakage"])
+
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        assert api_module._CONSUMPTION_FLOOD_CAP_NOTE not in report.limitations
+
+    async def test_rendered_markdown_report_contains_flood_cap_note_text(
+        self, tmp_path, monkeypatch
+    ):
+        from llmsec.reporting.markdown_reporter import MarkdownReporter
+
+        module = _MockModule([("c1", Verdict.BLOCKED, "clean")])
+        module.id = "unbounded_consumption"
+        _patch_modules(monkeypatch, module)
+        _patch_http_adapter(monkeypatch)
+        config = _http_app_config(tmp_path, enabled_modules=["unbounded_consumption"])
+
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        md_path = await MarkdownReporter().write(report, tmp_path / "md")
+        assert api_module._CONSUMPTION_FLOOD_CAP_NOTE in md_path.read_text()
+
+
+# --- Phase 8 (08-01): vector-context simulated-retrieval limitation note ------
+
+
+class TestVectorContextLimitationNote:
+    """MOD-10/D-04/D-07 (08-01-PLAN.md Task 2): the simulated-retrieval
+    caveat -- present exactly when `vector_embedding_weaknesses` is loaded,
+    byte-identical across runs, at a fixed position, and rendered in the
+    Markdown report."""
+
+    def test_present_when_vector_embedding_weaknesses_loaded(self):
+        limitations = api_module._scan_limitations(["vector_embedding_weaknesses"], [])
+        assert api_module._VECTOR_CONTEXT_SIMULATED_NOTE in limitations
+
+    def test_absent_when_vector_embedding_weaknesses_not_loaded(self):
+        limitations = api_module._scan_limitations(["prompt_injection"], [])
+        assert api_module._VECTOR_CONTEXT_SIMULATED_NOTE not in limitations
+
+    def test_byte_identical_across_repeated_calls_with_note_at_fixed_position(self):
+        """T-02-33: two `_scan_limitations()` calls over the same
+        module_ids produce byte-identical lists, with the new note at a
+        fixed position (last, after the consumption flood-cap note) and the
+        twelve pre-existing conditions' relative order unperturbed."""
+        module_ids = [
+            "vector_embedding_weaknesses",
+            "unbounded_consumption",
+            "prompt_injection",
+            "data_poisoning",
+        ]
+        first = api_module._scan_limitations(module_ids, [])
+        second = api_module._scan_limitations(module_ids, [])
+
+        assert first == second
+        assert first[-1] == api_module._VECTOR_CONTEXT_SIMULATED_NOTE
+        assert first.index(api_module._CONSUMPTION_FLOOD_CAP_NOTE) < first.index(
+            api_module._VECTOR_CONTEXT_SIMULATED_NOTE
+        )
+        assert first.index(api_module._POISONING_HEURISTIC_ONLY_NOTE) < first.index(
+            api_module._CONSUMPTION_FLOOD_CAP_NOTE
+        )
+
+    async def test_run_scan_with_vector_embedding_weaknesses_loaded_includes_note(
+        self, tmp_path, monkeypatch
+    ):
+        module = _MockModule([("c1", Verdict.BLOCKED, "clean")])
+        module.id = "vector_embedding_weaknesses"
+        _patch_modules(monkeypatch, module)
+        _patch_http_adapter(monkeypatch)
+        config = _http_app_config(tmp_path, enabled_modules=["vector_embedding_weaknesses"])
+
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        assert api_module._VECTOR_CONTEXT_SIMULATED_NOTE in report.limitations
+
+    async def test_run_scan_without_vector_embedding_weaknesses_omits_note(
+        self, tmp_path, monkeypatch
+    ):
+        module = _MockModule([("c1", Verdict.BLOCKED, "clean")])
+        module.id = "system_prompt_leakage"
+        _patch_modules(monkeypatch, module)
+        _patch_http_adapter(monkeypatch)
+        config = _http_app_config(tmp_path, enabled_modules=["system_prompt_leakage"])
+
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        assert api_module._VECTOR_CONTEXT_SIMULATED_NOTE not in report.limitations
+
+    async def test_rendered_markdown_report_contains_simulated_note_text(
+        self, tmp_path, monkeypatch
+    ):
+        from llmsec.reporting.markdown_reporter import MarkdownReporter
+
+        module = _MockModule([("c1", Verdict.BLOCKED, "clean")])
+        module.id = "vector_embedding_weaknesses"
+        _patch_modules(monkeypatch, module)
+        _patch_http_adapter(monkeypatch)
+        config = _http_app_config(tmp_path, enabled_modules=["vector_embedding_weaknesses"])
+
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        md_path = await MarkdownReporter().write(report, tmp_path / "md")
+        assert api_module._VECTOR_CONTEXT_SIMULATED_NOTE in md_path.read_text()
+
+
+# --- Phase 8 (08-04): excessive-agency no-real-enforcement limitation note -----
+
+
+class TestExcessiveAgencyLimitationNote:
+    """MOD-11/D-07 (08-04-PLAN.md Task 2): the no-real-enforcement caveat --
+    present exactly when `excessive_agency` is loaded, present even for a
+    zero-finding (all-clean) run, byte-identical across runs, at a fixed
+    position (after the vector-context note), and rendered in the Markdown
+    report."""
+
+    def test_present_when_excessive_agency_loaded(self):
+        limitations = api_module._scan_limitations(["excessive_agency"], [])
+        assert api_module._EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE in limitations
+
+    def test_absent_when_excessive_agency_not_loaded(self):
+        limitations = api_module._scan_limitations(["prompt_injection"], [])
+        assert api_module._EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE not in limitations
+
+    def test_present_even_with_a_completely_clean_case_log(self):
+        """A zero-finding run must still be distinguishable from an
+        untested one -- the note is keyed on `module_ids`, never on
+        whether any finding was produced."""
+        clean_case_log = [
+            EvalResult(
+                case_id="AGENCY-F01",
+                verdict=Verdict.BLOCKED,
+                confidence=0.8,
+                evidence="clean refusal",
+                detection_layer="regex",
+            )
+        ]
+        limitations = api_module._scan_limitations(["excessive_agency"], clean_case_log)
+        assert api_module._EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE in limitations
+
+    def test_byte_identical_across_repeated_calls_with_note_at_fixed_position(self):
+        """T-02-33: two `_scan_limitations()` calls over the same
+        module_ids produce byte-identical lists, with the new note at a
+        fixed position (last, after the vector-context note), the relative
+        order of the thirteen pre-existing conditions unperturbed, and
+        condition 13 strictly before condition 14."""
+        module_ids = [
+            "excessive_agency",
+            "vector_embedding_weaknesses",
+            "unbounded_consumption",
+            "prompt_injection",
+            "data_poisoning",
+        ]
+        first = api_module._scan_limitations(module_ids, [])
+        second = api_module._scan_limitations(module_ids, [])
+
+        assert first == second
+        assert first[-1] == api_module._EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE
+        assert first.index(api_module._VECTOR_CONTEXT_SIMULATED_NOTE) < first.index(
+            api_module._EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE
+        )
+        assert first.index(api_module._CONSUMPTION_FLOOD_CAP_NOTE) < first.index(
+            api_module._VECTOR_CONTEXT_SIMULATED_NOTE
+        )
+        assert first.index(api_module._POISONING_HEURISTIC_ONLY_NOTE) < first.index(
+            api_module._CONSUMPTION_FLOOD_CAP_NOTE
+        )
+
+    def test_both_new_phase_8_modules_together_emit_both_notes_in_fixed_order(self):
+        module_ids = ["excessive_agency", "vector_embedding_weaknesses"]
+        limitations = api_module._scan_limitations(module_ids, [])
+        assert limitations.index(api_module._VECTOR_CONTEXT_SIMULATED_NOTE) < limitations.index(
+            api_module._EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE
+        )
+
+    async def test_run_scan_with_excessive_agency_loaded_includes_note(
+        self, tmp_path, monkeypatch
+    ):
+        module = _MockModule([("c1", Verdict.BLOCKED, "clean")])
+        module.id = "excessive_agency"
+        _patch_modules(monkeypatch, module)
+        _patch_http_adapter(monkeypatch)
+        config = _http_app_config(tmp_path, enabled_modules=["excessive_agency"])
+
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        assert api_module._EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE in report.limitations
+
+    async def test_run_scan_without_excessive_agency_omits_note(
+        self, tmp_path, monkeypatch
+    ):
+        module = _MockModule([("c1", Verdict.BLOCKED, "clean")])
+        module.id = "system_prompt_leakage"
+        _patch_modules(monkeypatch, module)
+        _patch_http_adapter(monkeypatch)
+        config = _http_app_config(tmp_path, enabled_modules=["system_prompt_leakage"])
+
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        assert api_module._EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE not in report.limitations
+
+    async def test_rendered_markdown_report_contains_no_enforcement_note_text(
+        self, tmp_path, monkeypatch
+    ):
+        from llmsec.reporting.markdown_reporter import MarkdownReporter
+
+        module = _MockModule([("c1", Verdict.BLOCKED, "clean")])
+        module.id = "excessive_agency"
+        _patch_modules(monkeypatch, module)
+        _patch_http_adapter(monkeypatch)
+        config = _http_app_config(tmp_path, enabled_modules=["excessive_agency"])
+
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        md_path = await MarkdownReporter().write(report, tmp_path / "md")
+        assert api_module._EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE in md_path.read_text()
+
+
+# --- Phase 9 (09-02): misinformation fictional-ground-truth limitation note ----
+
+
+class TestMisinformationLimitationNote:
+    """MOD-12/D-02 (09-02-PLAN.md Task 3): the fictional-ground-truth caveat
+    -- present exactly when `misinformation` is loaded, present even for a
+    zero-finding (all-clean) run, byte-identical across runs, at a fixed
+    position (after the excessive-agency note), and rendered in the
+    Markdown report."""
+
+    def test_present_when_misinformation_loaded(self):
+        limitations = api_module._scan_limitations(["misinformation"], [])
+        assert api_module._MISINFORMATION_FICTIONAL_GROUND_TRUTH_NOTE in limitations
+
+    def test_absent_when_misinformation_not_loaded(self):
+        limitations = api_module._scan_limitations(["prompt_injection"], [])
+        assert api_module._MISINFORMATION_FICTIONAL_GROUND_TRUTH_NOTE not in limitations
+
+    def test_present_even_with_a_completely_clean_case_log(self):
+        """A zero-finding run must still be distinguishable from an
+        untested one -- the note is keyed on `module_ids`, never on
+        whether any finding was produced."""
+        clean_case_log = [
+            EvalResult(
+                case_id="MISINFO-F01",
+                verdict=Verdict.BLOCKED,
+                confidence=0.8,
+                evidence="clean refusal",
+                detection_layer="judge",
+            )
+        ]
+        limitations = api_module._scan_limitations(["misinformation"], clean_case_log)
+        assert api_module._MISINFORMATION_FICTIONAL_GROUND_TRUTH_NOTE in limitations
+
+    def test_byte_identical_across_repeated_calls_with_note_at_fixed_position(self):
+        """T-02-33: two `_scan_limitations()` calls over the same
+        module_ids produce byte-identical lists, with the new note at a
+        fixed position (last, after the excessive-agency note)."""
+        module_ids = [
+            "misinformation",
+            "excessive_agency",
+            "vector_embedding_weaknesses",
+            "unbounded_consumption",
+            "prompt_injection",
+            "data_poisoning",
+        ]
+        first = api_module._scan_limitations(module_ids, [])
+        second = api_module._scan_limitations(module_ids, [])
+
+        assert first == second
+        assert first[-1] == api_module._MISINFORMATION_FICTIONAL_GROUND_TRUTH_NOTE
+        assert first.index(api_module._EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE) < first.index(
+            api_module._MISINFORMATION_FICTIONAL_GROUND_TRUTH_NOTE
+        )
+
+    def test_both_new_modules_together_emit_both_notes_in_fixed_order(self):
+        module_ids = ["misinformation", "excessive_agency"]
+        limitations = api_module._scan_limitations(module_ids, [])
+        assert limitations.index(api_module._EXCESSIVE_AGENCY_NO_ENFORCEMENT_NOTE) < limitations.index(
+            api_module._MISINFORMATION_FICTIONAL_GROUND_TRUTH_NOTE
+        )
+
+    async def test_run_scan_with_misinformation_loaded_includes_note(self, tmp_path, monkeypatch):
+        module = _MockModule([("c1", Verdict.BLOCKED, "clean")])
+        module.id = "misinformation"
+        _patch_modules(monkeypatch, module)
+        _patch_http_adapter(monkeypatch)
+        config = _http_app_config(tmp_path, enabled_modules=["misinformation"])
+
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        assert api_module._MISINFORMATION_FICTIONAL_GROUND_TRUTH_NOTE in report.limitations
+
+    async def test_run_scan_without_misinformation_omits_note(self, tmp_path, monkeypatch):
+        module = _MockModule([("c1", Verdict.BLOCKED, "clean")])
+        module.id = "system_prompt_leakage"
+        _patch_modules(monkeypatch, module)
+        _patch_http_adapter(monkeypatch)
+        config = _http_app_config(tmp_path, enabled_modules=["system_prompt_leakage"])
+
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        assert api_module._MISINFORMATION_FICTIONAL_GROUND_TRUTH_NOTE not in report.limitations
+
+    async def test_rendered_markdown_report_contains_fictional_ground_truth_note_text(
+        self, tmp_path, monkeypatch
+    ):
+        from llmsec.reporting.markdown_reporter import MarkdownReporter
+
+        module = _MockModule([("c1", Verdict.BLOCKED, "clean")])
+        module.id = "misinformation"
+        _patch_modules(monkeypatch, module)
+        _patch_http_adapter(monkeypatch)
+        config = _http_app_config(tmp_path, enabled_modules=["misinformation"])
+
+        report = await api_module.run_scan(config, bypass_flag=True)
+
+        md_path = await MarkdownReporter().write(report, tmp_path / "md")
+        assert api_module._MISINFORMATION_FICTIONAL_GROUND_TRUTH_NOTE in md_path.read_text()

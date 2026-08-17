@@ -132,6 +132,18 @@ surrounding docstring before touching any of them.
 - **Honest degradation over silent success.** A tier that could not run says so in
   `ScanReport.limitations` (NER extra missing, concatenated multi-turn transport, simulated
   indirect injection). A clean report must never be indistinguishable from an untested one.
+- **The deterministic package-extraction tier defers on negation, it never overrules it
+  (CR-01).** `_extract_package_names()` treats a structural install/pin/import match as
+  definitive only when no negation cue appears in the fixed lookbehind window before
+  `match.start()`; a suppressed span that normalises to a real third-party name makes the
+  whole extraction defer to `judge_extract_packages()`, whose
+  `PACKAGE_EXTRACTION_JUDGE_SYSTEM_PROMPT` already carries the EXCLUSIONS clause for exactly
+  this case; the cue boundaries are hyphen-aware rather than plain `\b` because PyPI names are
+  hyphen-separated and a plain word boundary would read the `not` inside
+  `totally-fake-pkg-that-does-not-exist-xyz` as a refusal; and the guard is one-directional —
+  it may suppress or defer, never add a candidate, and never turn a suppressed real name into a
+  definitively-clean result. Pinned by `tests/test_supply_chain.py::TestNegationWindowGuard`.
+  Cites D-09 and CR-01.
 - **Target adapter stays on its pinned transport (D-73 mitigation 3).** `adapters/llm_api.py`
   and `orchestrator.py` are byte-for-byte unchanged since Phase 2 and never migrate to the
   attacker-side LangChain/LangGraph/DeepAgents stack — `--quick` is provably unaffected by

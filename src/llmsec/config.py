@@ -66,6 +66,31 @@ class ScanConfig(BaseSettings):
     # FULL_COMPROMISE on a near-verbatim similarity match. `None` defers
     # every module to the judge fallback, same as today's default behavior.
     known_system_prompt: str | None = None
+    # Phase 6 (06-01, D-04): local path to the TARGET's declared dependency
+    # manifest (requirements.txt or pyproject.toml), read by `supply_chain`'s
+    # `run_standalone_audit()` -- never auto-discovered. Threaded into
+    # `api.py`'s `module_config` dict; `PluginRegistry.load_allowed()`'s
+    # `accepted_params` filter drops this for every module that doesn't
+    # declare it. Not credential-shaped, so D-08's env-var-names-only rule
+    # does not apply here -- it is a plain path string, same tier as
+    # `known_system_prompt` above.
+    supply_chain_manifest_path: str | None = None
+    # Phase 6 (06-01, D-10): optional path to a user-supplied trigger-phrase
+    # overlay YAML, layered on top of `data_poisoning`'s curated baseline
+    # corpus. Same threading/config-tier discipline as
+    # `supply_chain_manifest_path` above -- not credential-shaped.
+    poisoning_trigger_overlay_path: str | None = None
+    # Phase 7 (07-01, D-05): two flat, top-level dials for `unbounded_
+    # consumption`'s MOD-08 threshold-comparison tier, mirroring
+    # `supply_chain_manifest_path`'s exact shape. `None` defers to the
+    # module's documented built-in default (a starting heuristic, never a
+    # universal truth) rather than disabling the check entirely. Threaded
+    # into `api.py`'s `module_config` dict; `PluginRegistry.load_allowed()`'s
+    # `accepted_params` filter drops these for every module that doesn't
+    # declare them. Neither field is credential-shaped, so D-08's
+    # env-var-names-only rule does not apply here.
+    consumption_token_threshold: int | None = None
+    consumption_latency_threshold_ms: float | None = None
     # Deep-mode attacker-team configuration (D-89). Nested block inherits
     # the CLI > YAML > env precedence below with NO extra source wiring --
     # settings_customise_sources already covers a nested block. `None` when

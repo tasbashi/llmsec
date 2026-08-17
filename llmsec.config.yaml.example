@@ -20,11 +20,72 @@ target:
 #   model: openai/gpt-4o-mini
 #   api_key_env: OPENAI_API_KEY
 
+# enabled_modules: which built-in test modules to run this scan. Selectable
+# ids: system_prompt_leakage, prompt_injection, pii_exfiltration,
+# insecure_output, supply_chain, data_poisoning, unbounded_consumption,
+# vector_embedding_weaknesses, excessive_agency, misinformation. An empty
+# list (the default below) means EVERY built-in module runs -- this is
+# `load_allowed(None)`'s existing fallback behaviour (D-01), not a disabled
+# scan.
 enabled_modules: []
 max_concurrency: 5
 output_dir: ./llmsec_reports
 judge_model: openai/gpt-4o-mini
 judge_api_key_env: OPENAI_API_KEY
+
+# --- supply_chain / data_poisoning (Phase 6, commented out) -------------
+# supply_chain_manifest_path: local path to the TARGET's declared
+# dependency manifest (a requirements.txt or pyproject.toml file living in
+# YOUR project, not llmsec's own environment). Only these two formats are
+# supported in v1.1 (D-05) -- npm/package-lock.json is out of scope for
+# now. NEVER auto-discovered (D-04): leaving this unset does not skip the
+# CVE/SBOM audit silently -- it produces an explicit "CVE tier did not
+# run" line in the report's limitations, never a report that reads as a
+# clean scan (D-06). The manifest must be fully version-pinned, since
+# dependency resolution is deliberately disabled -- an unpinned entry
+# cannot be looked up against a specific vulnerability record.
+# Requires the optional [supply-chain] extra (`pip install ".[supply-chain]"`)
+# for the CVE/SBOM query itself to run.
+#
+# supply_chain_manifest_path: ./requirements.txt
+#
+# poisoning_trigger_overlay_path: optional path to a YAML file of extra
+# backdoor-trigger phrases, layered ON TOP of the curated baseline corpus
+# (D-10) -- useful if you suspect specific trigger phrases (e.g. because
+# you trained the model yourself). An overlay can only ADD probes; it can
+# never raise the low-confidence cap already applied to every poisoning
+# finding (D-11).
+#
+# poisoning_trigger_overlay_path: ./poisoning_overlay.yaml
+
+# --- unbounded_consumption (Phase 7, commented out) ---------------------
+# consumption_token_threshold / consumption_latency_threshold_ms: the two
+# MOD-08 dials that control how aggressively unbounded_consumption scores
+# a target's response as a resource-exhaustion / denial-of-wallet finding.
+#
+# consumption_token_threshold (int): a response whose TargetResponse.
+# tokens_used exceeds this count contributes to the verdict. Built-in
+# default when this key is absent: 2000 tokens.
+#
+# consumption_latency_threshold_ms (float): a response whose latency_ms
+# exceeds this value contributes to the verdict. Built-in default when
+# this key is absent: 15000.0 ms.
+#
+# Both defaults are DOCUMENTED STARTING HEURISTICS, not calibrated
+# universal values -- no authoritative external source defines a single
+# "too many tokens" or "too slow" boundary across every possible target
+# model size and latency profile. Tune both against your own target;
+# leaving either key unset means "use the built-in default", never
+# "disable this check" (D-05).
+#
+# consumption_token_threshold: 2000
+# consumption_latency_threshold_ms: 15000.0
+#
+# The flood-probe dispatch cap (how many of the corpus's deliberately
+# heavier, retry-exempt probes a scan actually sends) is a FIXED
+# module-level constant of 3 -- deliberately not a third config dial here,
+# so the scan itself can never be configured into becoming the
+# denial-of-wallet event it is testing for (D-08).
 
 # --- attacker (deep mode, commented out) -------------------------------
 # --deep mode's attacker-team configuration (D-89). Uncomment to configure

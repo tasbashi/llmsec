@@ -31,6 +31,12 @@ BUILTIN_MODULE_IDS = {
     "prompt_injection",
     "pii_exfiltration",
     "insecure_output",
+    "supply_chain",
+    "data_poisoning",
+    "unbounded_consumption",
+    "vector_embedding_weaknesses",
+    "excessive_agency",
+    "misinformation",
 }
 
 

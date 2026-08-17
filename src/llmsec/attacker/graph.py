@@ -130,27 +130,62 @@ from llmsec.attacker.state import (
     new_campaign_memory,
 )
 from llmsec.models import EvalResult, TestCase, Verdict
-from llmsec.payloads.schema import PiiAttackVector, TechniqueFamily
+from llmsec.payloads.schema import (
+    AgencyClass,
+    ConsumptionTechniqueVector,
+    MisinformationTechniqueVector,
+    PiiAttackVector,
+    PoisoningTechniqueVector,
+    TechniqueFamily,
+    VectorContextTechniqueVector,
+)
 from llmsec.plugins.base import BaseModule
 
 logger = logging.getLogger(__name__)
 
 #: D-95 allowlist gate: the closed vocabulary a Strategist-selected
 #: technique must belong to, sourced ONLY from the existing closed
-#: `TechniqueFamily`/`PiiAttackVector` enums (`payloads/schema.py`) --
-#: never re-declared as a free-form string set, mirroring
-#: `roles/mutator.py`'s own `_VALID_TECHNIQUE_FAMILIES` computation
-#: exactly (a typo or hallucinated family name can never widen this set,
-#: because it is derived from the enums, not hand-maintained).
-_CLOSED_TECHNIQUE_VOCABULARY: frozenset[str] = frozenset(
-    f.value for f in TechniqueFamily
-) | frozenset(v.value for v in PiiAttackVector)
+#: `TechniqueFamily`/`PiiAttackVector`/`PoisoningTechniqueVector` enums
+#: (`payloads/schema.py`) -- never re-declared as a free-form string set,
+#: mirroring `roles/mutator.py`'s own `_VALID_TECHNIQUE_FAMILIES`
+#: computation exactly (a typo or hallucinated family name can never widen
+#: this set, because it is derived from the enums, not hand-maintained).
+#: 06-02 (RESEARCH Pitfall #3): `PoisoningTechniqueVector` widened in here
+#: MUST land in the same commit as `attacker/config.py`'s
+#: `DEFAULT_ENABLED_TECHNIQUES` and `roles/mutator.py`'s
+#: `_VALID_TECHNIQUE_FAMILIES` -- omitting any one of the three fails
+#: silently (see `attacker/config.py`'s identical comment for the full
+#: failure mode).
+#: 07-01 (RESEARCH Pitfall #4): `ConsumptionTechniqueVector` widened in here
+#: in the SAME plan as the enum's introduction (`unbounded_consumption` sets
+#: `uses_attacker_llm = True`, D-02).
+#: 08-02 (RESEARCH Pitfall #1): `VectorContextTechniqueVector` and
+#: `AgencyClass` widened in here, in `attacker/config.py`'s
+#: `DEFAULT_ENABLED_TECHNIQUES`, and in `roles/mutator.py`'s
+#: `_VALID_TECHNIQUE_FAMILIES` -- all three, in this SAME commit -- because
+#: `vector_embedding_weaknesses` and `excessive_agency` both set
+#: `uses_attacker_llm = True` (D-03).
+#: 09-02 (RESEARCH Pitfall #1): `MisinformationTechniqueVector` widened in
+#: here, in `attacker/config.py`'s `DEFAULT_ENABLED_TECHNIQUES`, and in
+#: `roles/mutator.py`'s `_VALID_TECHNIQUE_FAMILIES` -- all three, in this
+#: SAME commit -- because `misinformation` sets `uses_attacker_llm = True`.
+_CLOSED_TECHNIQUE_VOCABULARY: frozenset[str] = (
+    frozenset(f.value for f in TechniqueFamily)
+    | frozenset(v.value for v in PiiAttackVector)
+    | frozenset(p.value for p in PoisoningTechniqueVector)
+    | frozenset(c.value for c in ConsumptionTechniqueVector)
+    | frozenset(x.value for x in VectorContextTechniqueVector)
+    | frozenset(a.value for a in AgencyClass)
+    | frozenset(m.value for m in MisinformationTechniqueVector)
+)
 
 
 class TechniqueNotAllowed(ValueError):
     """D-95: raised when a Strategist-selected technique is not a member of
-    BOTH the closed `TechniqueFamily`/`PiiAttackVector` vocabulary AND the
-    campaign's configured `enabled_techniques` set.
+    BOTH the closed `TechniqueFamily`/`PiiAttackVector`/
+    `PoisoningTechniqueVector`/`ConsumptionTechniqueVector`/
+    `VectorContextTechniqueVector`/`AgencyClass`/`MisinformationTechniqueVector`
+    vocabulary AND the campaign's configured `enabled_techniques` set.
 
     Raised and caught entirely INSIDE `strategist_node` -- it never
     propagates out of a graph node. The gate refuses the dispatch (this
@@ -168,18 +203,23 @@ def validate_technique(selected: str, enabled: list[str] | tuple[str, ...]) -> s
     the boundary, never trust the caller.
 
     Returns `selected` unchanged when it is a member of BOTH the closed
-    `TechniqueFamily`/`PiiAttackVector` vocabulary (`payloads/schema.py`)
-    AND the campaign's configured `enabled` set. Checks the closed
-    vocabulary FIRST so a typo or hallucinated family name present in a
-    misconfigured `enabled_techniques` list can never widen the accepted
-    vocabulary beyond the enums that are its source of record. Raises
-    `TechniqueNotAllowed` otherwise -- never silently substitutes or
+    `TechniqueFamily`/`PiiAttackVector`/`PoisoningTechniqueVector`/
+    `ConsumptionTechniqueVector`/`VectorContextTechniqueVector`/
+    `AgencyClass`/`MisinformationTechniqueVector` vocabulary
+    (`payloads/schema.py`) AND the campaign's configured `enabled` set.
+    Checks the closed vocabulary FIRST so a typo or hallucinated family name
+    present in a misconfigured `enabled_techniques` list can never widen the
+    accepted vocabulary beyond the enums that are its source of record.
+    Raises `TechniqueNotAllowed` otherwise -- never silently substitutes or
     coerces a near-miss value.
     """
     if selected not in _CLOSED_TECHNIQUE_VOCABULARY:
         raise TechniqueNotAllowed(
             f"technique {selected!r} is not a member of the closed "
-            "TechniqueFamily/PiiAttackVector vocabulary (payloads/schema.py)"
+            "TechniqueFamily/PiiAttackVector/PoisoningTechniqueVector/"
+            "ConsumptionTechniqueVector/VectorContextTechniqueVector/"
+            "AgencyClass/MisinformationTechniqueVector vocabulary "
+            "(payloads/schema.py)"
         )
     if selected not in set(enabled):
         raise TechniqueNotAllowed(

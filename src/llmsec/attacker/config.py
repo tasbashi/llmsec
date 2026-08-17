@@ -24,7 +24,15 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from llmsec.payloads.schema import PiiAttackVector, TechniqueFamily
+from llmsec.payloads.schema import (
+    AgencyClass,
+    ConsumptionTechniqueVector,
+    MisinformationTechniqueVector,
+    PiiAttackVector,
+    PoisoningTechniqueVector,
+    TechniqueFamily,
+    VectorContextTechniqueVector,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -90,11 +98,41 @@ ROLE_MODEL_DEFAULTS: dict[str, tuple[float, int]] = {
 }
 
 # D-95 allowlist baseline: sourced ONLY from the existing closed
-# TechniqueFamily/PiiAttackVector enums (src/llmsec/payloads/schema.py),
-# never re-declared here, so the allowlist cannot silently drift from the
-# corpus taxonomy those enums define.
-DEFAULT_ENABLED_TECHNIQUES: tuple[str, ...] = tuple(f.value for f in TechniqueFamily) + tuple(
-    v.value for v in PiiAttackVector
+# TechniqueFamily/PiiAttackVector/PoisoningTechniqueVector enums
+# (src/llmsec/payloads/schema.py), never re-declared here, so the allowlist
+# cannot silently drift from the corpus taxonomy those enums define.
+#
+# 06-02 (RESEARCH Pitfall #3): a new deep-mode-eligible module's technique
+# enum MUST be added here, in `attacker/graph.py`'s
+# `_CLOSED_TECHNIQUE_VOCABULARY`, and in `attacker/roles/mutator.py`'s
+# `_VALID_TECHNIQUE_FAMILIES` -- all three, in the same commit. Omitting any
+# one of the three fails SILENTLY: `validate_technique()` rejects every
+# technique the Strategist ever selects for that module, which is recorded
+# as a constraint violation rather than a crash, so every deep-mode round
+# produces zero variants and nothing looks broken.
+# 07-01 (RESEARCH Pitfall #4): `ConsumptionTechniqueVector` widened in here
+# in the SAME plan as the enum's introduction (`unbounded_consumption` sets
+# `uses_attacker_llm = True`, D-02) -- mirrors the 06-02
+# `PoisoningTechniqueVector` precedent exactly.
+# 08-02 (RESEARCH Pitfall #1): `VectorContextTechniqueVector` and
+# `AgencyClass` widened in here, in `attacker/graph.py`'s
+# `_CLOSED_TECHNIQUE_VOCABULARY`, and in `attacker/roles/mutator.py`'s
+# `_VALID_TECHNIQUE_FAMILIES` -- all three, in this SAME commit --
+# because `vector_embedding_weaknesses` and `excessive_agency` both set
+# `uses_attacker_llm = True` (D-03).
+# 09-02 (RESEARCH Pitfall #1): `MisinformationTechniqueVector` widened in
+# here, in `attacker/graph.py`'s `_CLOSED_TECHNIQUE_VOCABULARY`, and in
+# `attacker/roles/mutator.py`'s `_VALID_TECHNIQUE_FAMILIES` -- all three, in
+# this SAME commit -- because `misinformation` sets `uses_attacker_llm =
+# True`.
+DEFAULT_ENABLED_TECHNIQUES: tuple[str, ...] = (
+    tuple(f.value for f in TechniqueFamily)
+    + tuple(v.value for v in PiiAttackVector)
+    + tuple(p.value for p in PoisoningTechniqueVector)
+    + tuple(c.value for c in ConsumptionTechniqueVector)
+    + tuple(x.value for x in VectorContextTechniqueVector)
+    + tuple(a.value for a in AgencyClass)
+    + tuple(m.value for m in MisinformationTechniqueVector)
 )
 
 

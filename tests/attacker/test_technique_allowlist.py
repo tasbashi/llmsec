@@ -25,15 +25,16 @@ import pytest
 
 import llmsec.attacker.graph as graph_module
 from llmsec.attacker.audit import audit_path_for
-from llmsec.attacker.config import AttackerConfig
-from llmsec.attacker.graph import TechniqueNotAllowed, validate_technique
+from llmsec.attacker.config import DEFAULT_ENABLED_TECHNIQUES, AttackerConfig
+from llmsec.attacker.graph import _CLOSED_TECHNIQUE_VOCABULARY, TechniqueNotAllowed, validate_technique
 from llmsec.attacker.roles import ROLE_REGISTRY
-from llmsec.attacker.roles.mutator import build_mutator_agent
+from llmsec.attacker.roles.mutator import MutatedVariant, build_mutator_agent
+from llmsec.attacker.roles.mutator import _VALID_TECHNIQUE_FAMILIES
 from llmsec.attacker.roles.strategist import StrategistOutput, build_strategist_agent
 from llmsec.attacker.runner import run_attacker_campaign
 from llmsec.config import ScanConfig, TargetConfig
 from llmsec.models import EvalResult, ScanContext, TargetResponse, TestCase, Verdict
-from llmsec.payloads.schema import PiiAttackVector, TechniqueFamily
+from llmsec.payloads.schema import PiiAttackVector, PoisoningTechniqueVector, SupplyChainTechniqueVector, TechniqueFamily
 from llmsec.plugins.base import BaseModule
 
 _STATIC_CASE_ID = "STUB-001"
@@ -82,6 +83,53 @@ def test_validate_technique_refuses_hallucinated_family_even_when_present_in_ena
 def test_validate_technique_checks_closed_vocabulary_before_enabled_set():
     with pytest.raises(TechniqueNotAllowed, match="closed"):
         validate_technique("not_a_real_technique_at_all", ["not_a_real_technique_at_all"])
+
+
+# --- 06-02-PLAN.md Task 1: PoisoningTechniqueVector three-call-site widening --
+
+
+def test_every_poisoning_technique_vector_value_is_in_default_enabled_techniques():
+    for member in PoisoningTechniqueVector:
+        assert member.value in DEFAULT_ENABLED_TECHNIQUES
+
+
+def test_every_poisoning_technique_vector_value_is_in_closed_technique_vocabulary():
+    for member in PoisoningTechniqueVector:
+        assert member.value in _CLOSED_TECHNIQUE_VOCABULARY
+
+
+def test_every_poisoning_technique_vector_value_is_in_valid_technique_families():
+    for member in PoisoningTechniqueVector:
+        assert member.value in _VALID_TECHNIQUE_FAMILIES
+
+
+def test_validate_technique_accepts_every_poisoning_technique_vector_member():
+    for member in PoisoningTechniqueVector:
+        assert (
+            validate_technique(member.value, [member.value]) == member.value
+        )
+
+
+def test_mutated_variant_construction_accepts_every_poisoning_technique_vector_member():
+    for member in PoisoningTechniqueVector:
+        variant = MutatedVariant(
+            payload="some mutated payload",
+            technique_family=member.value,
+            parent_technique_id="PARENT-001",
+            rationale="testing PoisoningTechniqueVector acceptance",
+        )
+        assert variant.technique_family == member.value
+
+
+def test_no_supply_chain_technique_vector_value_entered_any_of_the_three_allowlists():
+    """SupplyChainTechniqueVector deliberately does NOT enter the deep-mode
+    allowlist -- `supply_chain` sets `uses_attacker_llm=False` (D-03),
+    mirroring `OutputVulnerabilityClass`'s equally deliberate absence. This
+    is documented intentional scope, not an oversight."""
+    for member in SupplyChainTechniqueVector:
+        assert member.value not in DEFAULT_ENABLED_TECHNIQUES
+        assert member.value not in _CLOSED_TECHNIQUE_VOCABULARY
+        assert member.value not in _VALID_TECHNIQUE_FAMILIES
 
 
 def test_validate_technique_is_the_one_call_site_in_graph_py():
