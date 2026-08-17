@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "llm-security-tester"
-version = "0.1.0"
+version = "0.2.0"
 description = "Automated vulnerability scanner for applications that integrate Large Language Models, covering the OWASP Top 10 for LLMs."
 readme = "README.md"
 requires-python = ">=3.10"

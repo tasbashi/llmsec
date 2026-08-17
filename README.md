@@ -382,9 +382,14 @@ The fast suite makes no live network calls; `tests/conftest.py` supplies mocked 
 
 ## Project status
 
-v1.0 shipped 2026-08-08: all four modules, both adapters, both scan modes, JSON/Markdown reporting.
+v1.0 shipped 2026-08-08: four modules (LLM01/02/05/07), both adapters, both scan modes, JSON/Markdown reporting.
 
-Out of scope for v1: a web UI dashboard, real-time streaming attack sessions, LLM fine-tuning utilities, and formal compliance/audit certification — this is a testing tool, not a compliance product.
+v1.1 (in progress) is completing OWASP coverage and adding a web dashboard:
+
+- **Shipped:** all ten OWASP LLM Top 10 modules (LLM03/04/06/08/09/10 added across phases 6–9), each independently selectable via `enabled_modules` in config.
+- **In progress:** a web dashboard for browsing scan history and triggering authorized scans from the browser.
+
+Out of scope for the foreseeable future: real-time streaming attack sessions, LLM fine-tuning utilities, and formal compliance/audit certification — this is a testing tool, not a compliance product.
 
 ## Legal
 
