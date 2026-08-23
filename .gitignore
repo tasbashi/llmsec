@@ -49,3 +49,7 @@ llmsec_reports
 
 # Local-only GSD planning artifacts — tracked on master, never on main
 .planning/
+
+# Maintainer-only tooling and local config — tracked on master, never on main
+scripts/
+llmsec.config.yaml
