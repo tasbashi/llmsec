@@ -1,6 +1,14 @@
 # Example llmsec configuration.
 # Copy to llmsec.config.yaml and adjust for your target.
 # This example targets demo-app/backend's /chat endpoint (an HTTP app target).
+#
+# The dashboard's "New Scan" form (`llmsec dashboard`) collects a curated
+# subset of these same field names -- target, enabled_modules, judge_model,
+# judge_api_key_env, known_system_prompt, max_concurrency -- so an operator
+# editing this YAML and an operator using the browser are working against
+# one schema, not two (DASH-01). Advanced fields below (supply_chain_*,
+# poisoning_*, consumption_*, attacker) are CLI/YAML-only in this release --
+# not exposed in the browser form.
 
 target:
   type: http_app
@@ -30,6 +38,17 @@ target:
 enabled_modules: []
 max_concurrency: 5
 output_dir: ./llmsec_reports
+
+# The dashboard (`llmsec dashboard`) serves the reports written into this
+# same output_dir, read-only, in a browser. Its access token has
+# deliberately NO key in this file: this config never holds a literal
+# secret (D-08), exactly like every *_api_key_env value below references a
+# NAME rather than a key. Set it instead via the LLMSEC_DASHBOARD_TOKEN
+# environment variable before running `llmsec dashboard` -- with that
+# variable unset, the dashboard starts but refuses every /api request with
+# a 503 rather than serving reports unauthenticated. See README.md's
+# "Dashboard (report browsing)" section for the full setup guide.
+
 judge_model: openai/gpt-4o-mini
 judge_api_key_env: OPENAI_API_KEY
 

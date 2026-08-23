@@ -18,6 +18,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 from llmsec.adapters.base import TargetAdapter
 from llmsec.adapters.http_app import HttpAppAdapter
@@ -506,7 +507,13 @@ def _target_summary(config: ScanConfig) -> str:
     return f"http_app:{target.method} {target.url}"
 
 
-async def run_scan(config: ScanConfig, bypass_flag: bool = False) -> ScanReport:
+async def run_scan(
+    config: ScanConfig,
+    bypass_flag: bool = False,
+    *,
+    on_phase_change: Callable[[str], None] | None = None,
+    scan_id: str | None = None,
+) -> ScanReport:
     """Run a full scan and return the resulting `ScanReport`.
 
     Pipeline: authorization gate -> adapter construction -> allowlisted
@@ -516,6 +523,30 @@ async def run_scan(config: ScanConfig, bypass_flag: bool = False) -> ScanReport:
     `confirm_authorization()` runs FIRST, before any adapter is
     constructed or any request is sent (T-01-16). This coroutine never
     starts its own event loop — a library caller drives that themselves.
+
+    `on_phase_change` and `scan_id` (Phase 11, 11-01) are both additive
+    keyword-only parameters, defaulting to `None`, so every existing
+    positional or keyword caller of `run_scan()` is byte-for-byte
+    unaffected (D-05; CLAUDE.md "Additive plugin evolution").
+
+    `on_phase_change`, when given, is invoked fire-and-forget from
+    `run_scan()`'s point of view -- `run_scan()` does not await it, does
+    not inspect its return value, and does not catch any exception it
+    raises. It exists so a caller (the dashboard's background-task
+    dispatch, plan 11-01) can observe phase transitions
+    (`"running"`, `"scoring"`) without polling internal state. Called at
+    most twice per invocation, in order: `"running"` once the adapter is
+    constructed and before any request is sent, and `"scoring"` once
+    every module's cases have all been evaluated and scoring is about to
+    begin.
+
+    `scan_id`, when given, is used verbatim instead of generating a fresh
+    `uuid.uuid4().hex` value -- the identical id-generation mechanism
+    relocated to whichever caller needs to know the id before `run_scan()`
+    returns (the dashboard must return a `scan_id` in its `202` response
+    before the scan has done any work). This is not a new id scheme
+    (D-13 forbids that): a caller-supplied id is expected to already be a
+    `uuid.uuid4().hex`-shaped value, and `run_scan()` does not validate it.
     """
     confirm_authorization(bypass_flag)
 
@@ -523,10 +554,21 @@ async def run_scan(config: ScanConfig, bypass_flag: bool = False) -> ScanReport:
     # Generated here (rather than at ScanReport construction, as before) so
     # the deep-mode branch further below can pass this SAME id into the
     # attacker-team campaign call -- one scan, one id, threaded through
-    # both the static and deep-mode layers.
-    scan_id = uuid.uuid4().hex
+    # both the static and deep-mode layers. A caller-supplied `scan_id`
+    # (Phase 11, 11-01) is kept as-is rather than overwritten -- this is
+    # the same mechanism relocated to whichever caller needs to know the
+    # id first, never a second id scheme (D-13).
+    scan_id = scan_id if scan_id is not None else uuid.uuid4().hex
     adapter = _build_adapter(config)
     try:
+        # Moved inside the try/finally (11-REVIEW.md WR-01): a raising
+        # on_phase_change callback must still hit `finally`'s
+        # `adapter.close()` -- the docstring already documents that this
+        # function does not catch a callback's exception, but the adapter
+        # (an open httpx.AsyncClient for HttpAppAdapter) must never leak
+        # its connections just because the caller's callback raised.
+        if on_phase_change is not None:
+            on_phase_change("running")
         # Thread operator config (CORE-02/MOD-02/CORE-04) to every
         # allowlisted module id via `load_allowed()`'s config-hook — the
         # values are only ever applied AFTER a module clears the allowlist
@@ -584,6 +626,8 @@ async def run_scan(config: ScanConfig, bypass_flag: bool = False) -> ScanReport:
             _run_standalone_audits(modules, context),
             _run_direct_probes(modules, context, adapter),
         )
+        if on_phase_change is not None:
+            on_phase_change("scoring")
 
         # D-93: the deep-mode attacker team is a NEW ADDITIVE LAYER that
         # runs strictly AFTER ScanOrchestrator.run() returns -- never

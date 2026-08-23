@@ -164,6 +164,33 @@ supply-chain = [
     "pip-audit>=2.10.1,<3",
 ]
 
+# D-03: optional dashboard web-service stack (FastAPI + uvicorn) that powers
+# `llmsec dashboard` -- a read-only report-browsing service (DASH-03/04/05).
+# NEVER a core dependency -- the `llmsec scan`/`report`/`list-modules` path
+# never installs or imports either package.
+#
+# The `>=0.138` floor on `fastapi` is load-bearing: 0.138.0 is the release
+# that introduced `FastAPI.frontend()`, the method `dashboard/app.py` uses to
+# serve the built SPA shell alongside the token-gated `/api/*` router. Do not
+# let a future edit drop below it.
+#
+# Package legitimacy verified 2026-08-18 (10-01-PLAN.md Task 1 checkpoint,
+# human-approved): both flagged [SUS] by
+# `gsd-tools query package-legitimacy check`, traced to the same
+# latest-upload-date-read-as-first-publish-date heuristic weakness already
+# documented above for `[deep]`/`[supply-chain]` (downloads signal also
+# returned null for `fastapi`). Human independently re-confirmed against
+# PyPI: `fastapi` (github.com/fastapi/fastapi, current 0.141.1) and `uvicorn`
+# (github.com/Kludex/uvicorn, Kludex is a FastAPI/Starlette/Uvicorn core
+# maintainer, current 0.52.3).
+#
+# Plain `uvicorn` is installed deliberately, not the `[standard]` extra --
+# a local admin tool needs no uvloop/httptools/watchfiles.
+dashboard = [
+    "fastapi>=0.138,<1",
+    "uvicorn>=0.34,<1",
+]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
@@ -176,5 +203,14 @@ addopts = "-m 'not golden'"
 # includes src/llmsec/modules/payloads/*.yaml in the built wheel (confirmed
 # via `pip wheel . --no-deps` + zipfile inspection) since the corpus files
 # are git-tracked. No force-include/artifacts declaration needed.
+#
+# 10-01: the dashboard's Vite SOURCE tree (`src/llmsec/dashboard/frontend/`)
+# is git-tracked for development but must never ship in the wheel -- it is
+# excluded explicitly here. The BUILT output (`src/llmsec/dashboard/static/`)
+# is deliberately NOT named `dist` (the repo's `.gitignore` blanket-ignores
+# any directory literally named `dist` at any depth, which would otherwise
+# make a default Vite build silently absent from every wheel) and is picked
+# up automatically by the same VCS-aware packaging as above.
 [tool.hatch.build.targets.wheel]
 packages = ["src/llmsec"]
+exclude = ["src/llmsec/dashboard/frontend"]

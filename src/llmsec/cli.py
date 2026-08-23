@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from pathlib import Path
 from typing import Annotated
 
@@ -360,3 +361,50 @@ def list_modules_cmd(
     for module_id in sorted(discovered.keys()):
         status = "[loaded]" if module_id in effective_allowlist else "[not allowlisted]"
         typer.echo(f"{module_id} {status}")
+
+
+@app.command("dashboard")
+def dashboard_cmd(
+    output_dir: Annotated[Path, typer.Option("--output-dir")] = Path("./llmsec_reports"),
+    host: Annotated[str, typer.Option("--host")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port")] = 8765,
+) -> None:
+    """Serve already-persisted scan reports read-only in a browser.
+
+    Runs no scans -- it only reads `scan_<id>.json` files already written by
+    a prior `llmsec scan` run. Access to the `/api/*` surface requires the
+    shared-secret token in the `LLMSEC_DASHBOARD_TOKEN` environment
+    variable; the token must be set and the process restarted before any
+    report data is reachable.
+    """
+    # D-03/Pitfall #7: deferred import -- `llmsec.dashboard` must never be
+    # imported at cli.py module scope, or `llmsec scan` would silently
+    # hard-require the [dashboard] extra.
+    from llmsec.dashboard import DashboardExtraNotInstalled, require_dashboard_extra
+
+    try:
+        require_dashboard_extra()
+    except DashboardExtraNotInstalled as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1)
+
+    from llmsec.dashboard.auth import DASHBOARD_TOKEN_ENV_VAR
+
+    if not os.environ.get(DASHBOARD_TOKEN_ENV_VAR):
+        # Never print, hint at, or partially mask the value itself
+        # (prohibition P-02) -- only the env var NAME. The server still
+        # starts so the operator can reach the page and read the same
+        # message the UI shows; every /api request will be refused with a
+        # 503 until the var is set and the process is restarted.
+        typer.echo(
+            f"Warning: {DASHBOARD_TOKEN_ENV_VAR} is not set. Every /api "
+            f"request will be refused with a 503 until it is set and this "
+            f"process is restarted.",
+            err=True,
+        )
+
+    import uvicorn
+
+    from llmsec.dashboard.app import create_app
+
+    uvicorn.run(create_app(output_dir), host=host, port=port)

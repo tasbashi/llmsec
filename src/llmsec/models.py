@@ -207,7 +207,16 @@ class DeepModeSummary(BaseModel):
     # from `constraint_violations` (D-95 allowlist refusals only) and from
     # `abandoned_arcs` (a strategic Crescendo abort, not a structural
     # failure). Populated from `CampaignResult.role_structural_failures`.
-    role_structural_failures: int
+    # Defaults to 0 (D-10-29): this field was added to `DeepModeSummary`
+    # after some `--deep` reports were already persisted with an older
+    # shape lacking it. Without a default, `ScanReport.model_validate_json`
+    # raises on every such report -- not just in the dashboard, but in
+    # `llmsec report` too -- silently and permanently locking operators out
+    # of their own pre-existing scan history. The additive-optional-field
+    # convention this class's docstring already describes for newer fields
+    # applies here too: a missing count reads as "none observed", which is
+    # the correct reading for a report from before this counter existed.
+    role_structural_failures: int = 0
     truncated: bool
     audit_log_path: str | None
 

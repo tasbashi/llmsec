@@ -20,6 +20,7 @@ Every scan is `--quick` by default (static payload corpora, no attacker LLM, don
 - [Configuration](#configuration)
 - [CLI reference](#cli-reference)
 - [Reading a report](#reading-a-report)
+- [Dashboard (browsing reports & triggering scans)](#dashboard-browsing-reports--triggering-scans)
 - [Deep mode (Attacker LLM)](#deep-mode-attacker-llm)
 - [Detection tiers](#detection-tiers)
 - [Extending llmsec (plugin modules)](#extending-llmsec-plugin-modules)
@@ -105,6 +106,9 @@ uv pip install -e ".[pii-ner]" && python -m spacy download en_core_web_lg   # ~7
 
 # Deep mode's attacker team (LangChain + DeepAgents on LangGraph) — requires Python >= 3.11
 uv pip install -e ".[deep]"
+
+# Web dashboard for browsing scan reports in a browser — pulls in FastAPI + uvicorn only
+uv pip install -e ".[dashboard]"
 ```
 
 ## Quickstart
@@ -212,6 +216,25 @@ llmsec list-modules --config llmsec.config.yaml
 
 Lists every module the plugin registry discovers, annotated `[loaded]` or `[not allowlisted]` against your current config. Never instantiates a module just to list it.
 
+```bash
+llmsec dashboard --output-dir ./llmsec_reports --host 127.0.0.1 --port 8765
+```
+
+| Flag | Description | Default |
+|---|---|---|
+| `--output-dir DIR` | Directory of persisted `scan_<id>.json` reports to serve | `./llmsec_reports` |
+| `--host HOST` | Interface to bind — stays loopback unless you deliberately widen it | `127.0.0.1` |
+| `--port PORT` | Port to listen on | `8765` |
+
+Requires the `[dashboard]` extra and a configured `LLMSEC_DASHBOARD_TOKEN`. Serves the reports in
+`--output-dir` read-only over HTTP, and — since Phase 11 — also lets an authenticated browser
+trigger a new `--quick`-equivalent scan against an operator-supplied target through the same
+`/api` router: the "New Scan" form submits a curated `ScanConfig` subset, gated by a per-request
+authorization attestation and a submission-time SSRF check, exactly like `llmsec scan` requires
+authorization and never traffic reaches an internal address unchecked. See
+[Dashboard (browsing reports & triggering scans)](#dashboard-browsing-reports--triggering-scans)
+for the full setup guide, including both accepted limitations of scan triggering.
+
 ## Reading a report
 
 Every finding carries a **verdict**, mapped to a fixed **severity** — never a weighted numeric score that hides the reasoning:
@@ -247,6 +270,130 @@ A Markdown report looks like this — taken from a real `llmsec scan` run agains
 Every report also ships a **Scan Limitations** section — e.g. "this target can't hold conversation state, so multi-turn sequences were flattened into a single concatenated request" — printed even on a fully clean run, so a clean report is never indistinguishable from an untested one.
 
 Findings are scored against raw evidence *before* redaction runs, so severity reflects what actually happened; only the persisted/displayed evidence text is redacted afterward. Real secrets are always redacted — a canary literal used to prove an echo is the only exemption, and only for that literal.
+
+## Dashboard (browsing reports & triggering scans)
+
+`llmsec` ships a small local web dashboard for browsing scan reports and — since Phase 11 —
+triggering new scans, all in a browser instead of reading JSON files, piping `llmsec report`
+through a pager, or editing `llmsec.config.yaml` by hand. It does two things:
+
+- **Browse** already-persisted `scan_<id>.json` reports (unchanged from the read-only v1.0 of
+  this dashboard).
+- **Trigger** a new `--quick`-equivalent scan against an operator-supplied target through a "New
+  Scan" form, gated by a per-request authorization attestation and a submission-time SSRF check.
+  `--deep` mode is not available from the browser in this release — trigger a deep-mode scan from
+  the CLI instead.
+
+### Installing the dashboard
+
+```bash
+uv pip install -e ".[dashboard]"     # pulls in FastAPI + uvicorn only, stays out of core deps
+```
+
+### Setting the access token
+
+The dashboard is gated by a single shared-secret bearer token. Three steps:
+
+1. Generate a strong random secret — don't invent one by hand:
+
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
+
+2. Export it as `LLMSEC_DASHBOARD_TOKEN` in the shell that will run `llmsec dashboard`:
+
+   ```bash
+   export LLMSEC_DASHBOARD_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+   ```
+
+3. This token has **no key in `llmsec.config.yaml`, by design** — only an env-var *name* is ever
+   referenced, exactly like `api_key_env`/`judge_api_key_env` above (config never holds a literal
+   secret, D-08). The dashboard re-reads the variable on every request, so rotating the token is
+   an export plus a process restart, never a code change.
+
+### Launching
+
+```bash
+llmsec dashboard --output-dir ./llmsec_reports --host 127.0.0.1 --port 8765
+```
+
+The host defaults to loopback (`127.0.0.1`) deliberately: binding it to a routable interface
+makes the shared secret the *only* thing standing between the network and every scan report on
+that machine, including whatever system-prompt content those reports captured. The port
+defaults to `8765` rather than `8000` because the bundled DVLA demo target already listens on
+`8000`.
+
+### What you can do in the browser
+
+- Log in with the token configured above.
+- Browse every past report, newest first, with no pagination.
+- Filter by target, module, and severity — combined with AND semantics, so adding a filter can
+  only narrow the list.
+- Open a report to see its findings table, its severity breakdown as a chart, its scan
+  limitations, and its deep-mode summary when present.
+- Expand a "Raw cases" section on the same page for the full per-case results.
+- Download the raw `scan_<id>.json`.
+- Log out, which clears the stored token from the browser.
+
+### Triggering a scan
+
+Click "New Scan" from the report list. The form collects a **curated subset** of the same
+`ScanConfig` schema `llmsec.config.yaml` uses — same field names, so an operator who already
+edits YAML and one using the browser are working against one schema. It covers `target` (both
+`http_app` and `raw_llm`, with all their existing sub-fields), the ten-module `enabled_modules`
+checklist, `judge_model`/`judge_api_key_env`, `known_system_prompt`, and `max_concurrency`.
+Advanced/rare-path fields — `supply_chain_manifest_path`, `poisoning_trigger_overlay_path`, the
+consumption-threshold tuning dials, and the entire `attacker` (deep mode) block — are **not**
+exposed in the browser; edit `llmsec.config.yaml` and use the CLI for those. Deep mode in
+particular is out of scope for browser-triggered scans in this release, regardless of what your
+YAML configures.
+
+Every submission requires an explicit **per-target authorization attestation**: an
+unchecked-by-default checkbox next to the disclaimer text and the exact target you're about to
+scan. Editing the target after checking the box unchecks it again, so you always confirm against
+the value actually being submitted. This attestation is checked fresh, server-side, on every
+request — setting `LLMSEC_AUTHORIZED=1` in the dashboard process's own environment does **not**
+and **cannot** substitute for it; that variable only affects the CLI's own interactive-prompt
+bypass and has no effect on `POST /api/scans`.
+
+A successful submission returns a `scan_id` immediately and takes you to a progress view showing
+`queued` → `running` → `scoring` → `complete` (or `failed`), polled automatically — no manual
+refresh needed. Once a triggered scan completes, its `scan_id` is usable directly against the
+same report list and detail views used for CLI-run scans: there is no separate id scheme and no
+separate detail UI for dashboard-triggered results.
+
+### Failure modes
+
+| Condition | What you see | What to do |
+|---|---|---|
+| `LLMSEC_DASHBOARD_TOKEN` not set | The server starts and prints a warning naming the variable; every `/api` request returns **503**. The login form shows "Dashboard isn't configured yet." | Set the env var (see above) and restart the process — an unset token is a misconfiguration, not "auth disabled." |
+| Wrong token submitted | **401** with an inline "Invalid token" message on the login form. | Re-check the value you exported and try again. |
+| `[dashboard]` extra not installed | `llmsec dashboard` prints the install command and exits `1` — no traceback. | Run `uv pip install -e ".[dashboard]"` and retry. |
+| Dashboard restarts while a scan is running | The status endpoint returns **404** for that scan id and the browser shows "Lost track of this scan." | Check the report list — the scan process died with the dashboard, but if it had already written a report, the report is still on disk. **In-flight scan state lives only in the dashboard process's memory and is not persisted across a restart.** |
+| Submitted target resolves to a private/loopback/link-local/cloud-metadata address | **400** before any request reaches the target, naming the hostname, with an inline "This target can't be scanned." message on the form. | Supply a publicly-resolvable target, or run `llmsec scan` from the CLI on a host that can reach the internal target — the CLI has no such destination gate. |
+
+The 503-vs-401 distinction is deliberate and load-bearing: a misconfigured deployment (nobody set
+the token yet) must never be mistaken for a typo'd token, so they are two different status codes
+with two different messages.
+
+### Security notes
+
+- The token is a single shared secret with no user accounts and no roles: anyone holding it sees
+  every report on that machine.
+- It is stored in the browser's `localStorage`, so it survives a browser restart — a deliberate
+  trade this project made in favor of convenience. Treat it like any other long-lived credential
+  on a shared machine, and use "Log Out" when you're done.
+- The reports directory is never exposed as static files; every byte of report content is served
+  by a token-gated `/api/*` route.
+- The dashboard never re-scores and never re-redacts anything — it renders exactly what the scan
+  already wrote to disk. Redaction happened once, at scan time, in the writer path.
+- The destination check resolves the submitted hostname at submission time and rejects any
+  loopback, private, link-local, reserved, multicast, or unspecified result, including
+  IPv4-mapped IPv6 forms. It runs before any adapter is constructed.
+- It does **not** close the DNS-rebinding window: the address a hostname resolves to at check time
+  can differ from the address the scan connects to moments later. This is a known, accepted
+  limitation of this release, not an oversight. The mitigating fact: the HTTP adapter does not
+  follow redirects, so a target cannot redirect the scanner toward an internal address.
 
 ## Deep mode (Attacker LLM)
 
@@ -367,10 +514,12 @@ Everything — system prompt, PII, tool state — starts empty and is configured
 
 ```bash
 uv pip install -e ".[dev]"
+uv pip install -e ".[dashboard,dev]"            # if you're touching the dashboard
 
 pytest                                          # fast suite — golden/live tests excluded by default
 pytest tests/test_orchestrator.py               # single file
 pytest tests/test_api.py::test_run_scan_redacts_credentials -v
+pytest tests/dashboard/ -q                      # dashboard suite
 
 pytest tests/evaluators/ -m golden -v --tb=short  # live judge-eval gates — need a real API key, never run in CI
 
@@ -378,7 +527,7 @@ ruff check src tests
 mypy src
 ```
 
-The fast suite makes no live network calls; `tests/conftest.py` supplies mocked target/litellm fixtures. `pyproject.toml` sets `addopts = "-m 'not golden'"` so golden tests stay a pre-release gate rather than a per-commit check.
+The fast suite makes no live network calls; `tests/conftest.py` supplies mocked target/litellm fixtures. `pyproject.toml` sets `addopts = "-m 'not golden'"` so golden tests stay a pre-release gate rather than a per-commit check. `tests/dashboard/` guards each test module with `pytest.importorskip("fastapi", ...)`, so without the `[dashboard]` extra installed those tests are skipped rather than failed — a green `pytest` run on a bare `[dev]` environment says nothing about dashboard coverage, and the extra must be installed before treating the suite as covering it.
 
 ## Project status
 
@@ -386,8 +535,8 @@ v1.0 shipped 2026-08-08: four modules (LLM01/02/05/07), both adapters, both scan
 
 v1.1 (in progress) is completing OWASP coverage and adding a web dashboard:
 
-- **Shipped:** all ten OWASP LLM Top 10 modules (LLM03/04/06/08/09/10 added across phases 6–9), each independently selectable via `enabled_modules` in config.
-- **In progress:** a web dashboard for browsing scan history and triggering authorized scans from the browser.
+- **Shipped:** all ten OWASP LLM Top 10 modules (LLM03/04/06/08/09/10 added across phases 6–9), each independently selectable via `enabled_modules` in config; an authenticated local web dashboard (`llmsec dashboard`, behind the `[dashboard]` extra) for browsing, filtering, and reading past scan reports.
+- **In progress:** triggering an authorized scan from the browser, per-request authorization attestation, live progress, and SSRF protection on submitted target URLs.
 
 Out of scope for the foreseeable future: real-time streaming attack sessions, LLM fine-tuning utilities, and formal compliance/audit certification — this is a testing tool, not a compliance product.
 
