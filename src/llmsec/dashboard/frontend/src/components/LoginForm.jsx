@@ -47,29 +47,42 @@ export default function LoginForm({ onLoginSuccess }) {
     <div className="min-h-screen flex items-center justify-center pt-3xl bg-surface-primary">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-md bg-surface-secondary rounded-lg p-lg flex flex-col gap-md"
+        className="w-full max-w-md bg-surface-secondary border border-border rounded-lg shadow-lg p-lg flex flex-col gap-md"
       >
-        <h1 className="text-display">llmsec Dashboard</h1>
-        <label className="text-label uppercase tracking-wide" htmlFor="dashboard-token">
-          Dashboard token
-        </label>
-        <input
-          id="dashboard-token"
-          type="password"
-          autoComplete="off"
-          spellCheck={false}
-          value={candidate}
-          onChange={(e) => setCandidate(e.target.value)}
-          className="w-full text-body px-md py-sm rounded bg-surface-primary border border-surface-secondary focus:outline-none focus:ring-2 focus:ring-accent overflow-x-auto whitespace-nowrap"
-          placeholder="Paste your LLMSEC_DASHBOARD_TOKEN"
-        />
-        {error && <p className="text-body text-destructive">{error}</p>}
+        <div className="flex flex-col gap-xs">
+          <h1 className="text-display font-display text-text">llmsec</h1>
+          <p className="text-body font-mono text-text-muted">❯ authenticate</p>
+        </div>
+        <div className="flex flex-col gap-xs">
+          <label
+            className="text-label font-mono uppercase tracking-wide text-text-muted"
+            htmlFor="dashboard-token"
+          >
+            DASHBOARD TOKEN
+          </label>
+          <div className="flex items-center gap-xs w-full px-md py-sm rounded bg-surface-primary border border-border focus-within:border-border-hover">
+            <span className="text-body font-mono text-accent">❯</span>
+            <input
+              id="dashboard-token"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              value={candidate}
+              onChange={(e) => setCandidate(e.target.value)}
+              className="w-full text-body font-mono bg-transparent focus:outline-none overflow-x-auto whitespace-nowrap text-text"
+              placeholder="Paste your LLMSEC_DASHBOARD_TOKEN"
+            />
+          </div>
+        </div>
+        {error && (
+          <p className="text-body font-mono text-destructive">[error] {error}</p>
+        )}
         <button
           type="submit"
           disabled={disabled}
-          className="bg-accent text-body rounded px-md py-sm disabled:opacity-50"
+          className="w-full bg-accent text-body font-mono rounded px-md py-sm hover:bg-accent-hover hover:shadow-glow-accent disabled:opacity-50 disabled:hover:shadow-none"
         >
-          {loading ? "Unlocking…" : "Unlock Dashboard"}
+          {loading ? "Unlocking…" : "$ unlock"}
         </button>
       </form>
     </div>

@@ -270,3 +270,8 @@ triggering with SSRF gating and live progress). Full detail for both:
 `v1.1-MILESTONE-AUDIT.md`, and `.planning/RETROSPECTIVE.md`. No milestone is in progress as of
 the v1.1 close — the next one starts with `/gsd-new-milestone`, which creates a fresh
 `REQUIREMENTS.md`.
+
+## Dashboard UI design direction
+
+- **Sketch findings for testai** (validated dashboard visual direction, CSS patterns,
+  type/color system) → `Skill("sketch-findings-testai")`

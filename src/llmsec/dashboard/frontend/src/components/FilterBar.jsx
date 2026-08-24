@@ -28,9 +28,23 @@ const SEVERITY_OPTION_CLASS = {
   none: "text-severity-none",
 };
 
+// D-12-07: builds the "active filter summary" that replaces the grep hint
+// once at least one filter is set -- pure display text derived from the
+// already-owned `value`, never a second source of truth for what is
+// actually being requested.
+function activeFilterSummary(value) {
+  const parts = [];
+  if (value.target) parts.push(value.target);
+  if (value.modules.length > 0) parts.push(value.modules.join(","));
+  if (value.severity) parts.push(value.severity);
+  return parts.join(" · ");
+}
+
 export default function FilterBar({ options, state, value, onChange }) {
   const disabled = state === "loading" || state === "error";
   const loadingPlaceholder = state === "loading";
+  const hasAnyFilterActive =
+    Boolean(value.target) || Boolean(value.severity) || value.modules.length > 0;
 
   function setTarget(target) {
     onChange({ ...value, target });
@@ -48,7 +62,18 @@ export default function FilterBar({ options, state, value, onChange }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-sm bg-surface-secondary p-lg rounded text-body">
+    <div className="flex flex-wrap items-center gap-sm font-mono text-label bg-surface-primary border border-border rounded-sm px-sm py-xs">
+      {/* D-12-07: chrome only, a non-interactive hint / active-filter
+          summary -- never a free-text input. A substring search over the
+          free-form target_summary is forbidden by D-09, and an input that
+          cannot filter would be a control that lies about what it does.
+          The three real filter controls below are the unchanged
+          selects/chips this bar already had; only their surrounding chrome
+          moved into this grep-styled cluster. */}
+      <span className="text-text-faint whitespace-nowrap">
+        {hasAnyFilterActive ? activeFilterSummary(value) : "grep target, module, severity…"}
+      </span>
+
       {/* Target -- single-select over the server-computed distinct values
           (D-09: never free-text, a substring search against a free-form
           field is a typo dead-end). Truncated with the full value in a
@@ -59,7 +84,7 @@ export default function FilterBar({ options, state, value, onChange }) {
         value={value.target}
         title={value.target || undefined}
         onChange={(e) => setTarget(e.target.value)}
-        className="max-w-[220px] truncate rounded bg-surface-primary border border-surface-secondary px-sm py-xs text-body disabled:opacity-50"
+        className="max-w-[180px] truncate rounded-sm bg-surface-sunken border border-border px-sm py-xs text-label disabled:opacity-50"
       >
         {loadingPlaceholder ? (
           <option value="">Loading filters…</option>
@@ -78,9 +103,14 @@ export default function FilterBar({ options, state, value, onChange }) {
       {/* Modules -- a row of toggle chips (clearer than a native multi-select
           for a small, known set). Superset semantics (10-02 assumption
           A-01): selecting several narrows the result set. */}
-      <div className="flex flex-wrap items-center gap-sm" role="group" aria-label="Filter by module">
+      <div
+        className="flex flex-wrap items-center gap-xs"
+        role="group"
+        aria-label="Filter by module"
+        title="Selecting more than one module shows only scans that ran all of them."
+      >
         {loadingPlaceholder ? (
-          <span className="text-label">Loading filters…</span>
+          <span className="text-text-faint">Loading filters…</span>
         ) : (
           (options?.modules ?? []).map((moduleId) => {
             const active = value.modules.includes(moduleId);
@@ -93,9 +123,9 @@ export default function FilterBar({ options, state, value, onChange }) {
                 onClick={() => toggleModule(moduleId)}
                 className={
                   (active
-                    ? "bg-accent text-body"
-                    : "bg-surface-secondary border border-surface-secondary text-body") +
-                  " text-label px-sm py-xs rounded disabled:opacity-50"
+                    ? "bg-accent-dim text-accent border border-accent"
+                    : "bg-surface-sunken border border-border text-text-muted") +
+                  " px-sm py-xs rounded-sm disabled:opacity-50"
                 }
               >
                 {moduleId}
@@ -113,7 +143,7 @@ export default function FilterBar({ options, state, value, onChange }) {
         disabled={disabled}
         value={value.severity}
         onChange={(e) => setSeverity(e.target.value)}
-        className="rounded bg-surface-primary border border-surface-secondary px-sm py-xs text-body disabled:opacity-50"
+        className="rounded-sm bg-surface-sunken border border-border px-sm py-xs text-label disabled:opacity-50"
       >
         <option value="">Any severity</option>
         {(options?.severities ?? []).map((severity) => (
@@ -127,13 +157,7 @@ export default function FilterBar({ options, state, value, onChange }) {
         ))}
       </select>
 
-      <p className="text-label basis-full text-body">
-        Selecting more than one module shows only scans that ran all of them.
-      </p>
-
-      {state === "error" && (
-        <p className="text-label basis-full text-destructive">Filters unavailable</p>
-      )}
+      {state === "error" && <span className="text-destructive">Filters unavailable</span>}
     </div>
   );
 }

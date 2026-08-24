@@ -21,9 +21,9 @@ function ChevronIcon({ expanded }) {
 
 // Collapsed by default (D-14) -- driven purely by local `useState`. There is
 // no fetch of its own: `case_log` already arrived on the same
-// `GET /api/reports/{scan_id}` payload that populates the findings table
-// and severity chart, which is exactly why the UI-SPEC dismissed a separate
-// loading/error state for this component.
+// `GET /api/reports/{scan_id}` payload that populates the findings list
+// and severity histogram, which is exactly why the UI-SPEC dismissed a
+// separate loading/error state for this component.
 export default function RawCases({ caseLog }) {
   const [expanded, setExpanded] = useState(false);
   const count = caseLog.length;
@@ -34,7 +34,7 @@ export default function RawCases({ caseLog }) {
         type="button"
         aria-expanded={expanded}
         onClick={() => setExpanded((prev) => !prev)}
-        className="flex items-center gap-sm text-body text-accent self-start"
+        className="flex items-center gap-sm font-mono text-body text-accent self-start"
       >
         <ChevronIcon expanded={expanded} />
         {expanded ? "Hide raw cases" : `Show raw cases (${count})`}
@@ -47,14 +47,20 @@ export default function RawCases({ caseLog }) {
             caseLog.map((entry) => (
               <div
                 key={entry.case_id}
-                className="bg-surface-secondary rounded p-md flex flex-col gap-xs"
+                className="bg-surface-secondary rounded-md p-md flex flex-col gap-xs"
               >
                 <p className="font-mono text-label">{entry.case_id}</p>
-                <p className="text-body">Verdict: {entry.verdict}</p>
-                <p className="text-body">Confidence: {entry.confidence}</p>
-                <p className="text-body">Detection layer: {entry.detection_layer}</p>
+                <p className="font-mono text-label text-text-faint">Verdict: {entry.verdict}</p>
+                <p className="font-mono text-label text-text-faint">
+                  Confidence: {entry.confidence}
+                </p>
+                <p className="font-mono text-label text-text-faint">
+                  Detection layer: {entry.detection_layer}
+                </p>
                 {entry.transport_mode && (
-                  <p className="text-body">Transport: {entry.transport_mode}</p>
+                  <p className="font-mono text-label text-text-faint">
+                    Transport: {entry.transport_mode}
+                  </p>
                 )}
                 {/* Target-derived text (threat T-10-09) -- a plain JSX
                     text child, never a raw-HTML injection attribute. */}

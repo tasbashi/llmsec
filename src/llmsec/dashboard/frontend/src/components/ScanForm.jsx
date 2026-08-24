@@ -67,9 +67,22 @@ function ChevronIcon({ expanded }) {
   );
 }
 
-const INPUT_CLASS =
-  "w-full text-body px-md py-sm rounded bg-surface-primary border border-surface-secondary focus:outline-none focus:ring-2 focus:ring-accent";
-const LABEL_CLASS = "text-label uppercase tracking-wide";
+// Terminal field-card pattern -- reuses LoginForm.jsx's own established
+// convention (12-01) verbatim rather than inventing a second one: an
+// uppercase mono label above a bordered `bg-surface-primary` row carrying a
+// `❯` prompt glyph, the row itself stepping to `border-border-hover` on
+// focus (`focus-within`). The row owns the border/background; the control
+// inside it is always `bg-transparent` with no border of its own.
+const FIELD_LABEL_CLASS = "text-label font-mono uppercase tracking-wide text-text-muted";
+const FIELD_ROW_CLASS =
+  "flex items-center gap-xs w-full px-md py-sm rounded bg-surface-primary border border-border focus-within:border-border-hover";
+const FIELD_ROW_TEXTAREA_CLASS =
+  "flex items-start gap-xs w-full px-md py-sm rounded bg-surface-primary border border-border focus-within:border-border-hover";
+const FIELD_INPUT_CLASS = "w-full text-body font-mono bg-transparent focus:outline-none text-text";
+const FIELD_TEXTAREA_CLASS = FIELD_INPUT_CLASS + " h-40 overflow-y-auto resize-none";
+const PROMPT_CLASS = "text-body font-mono text-accent";
+const HEADER_INPUT_CLASS =
+  "flex-1 text-body font-mono px-sm py-xs rounded-sm bg-surface-primary border border-border focus:outline-none focus:border-border-hover text-text";
 const HELPER_CLASS = "text-body";
 const ERROR_CLASS = "text-body text-destructive";
 
@@ -276,7 +289,7 @@ export default function ScanForm({ onScanStarted, onCancel, onUnauthorized }) {
       <form onSubmit={handleSubmit} className="flex flex-col gap-2xl max-w-3xl">
         {/* Target section -- the largest, first-encountered field group
             (UI-SPEC Visual Hierarchy). */}
-        <section className="flex flex-col gap-md bg-surface-secondary rounded p-lg">
+        <section className="flex flex-col gap-md bg-surface-secondary rounded-lg p-lg">
           <h2 className="text-heading">Target</h2>
 
           <div className="flex items-center gap-lg">
@@ -303,31 +316,37 @@ export default function ScanForm({ onScanStarted, onCancel, onUnauthorized }) {
           {targetType === "http_app" ? (
             <div className="flex flex-col gap-md">
               <div className="flex flex-col gap-xs">
-                <label className={LABEL_CLASS} htmlFor="target-method">
+                <label className={FIELD_LABEL_CLASS} htmlFor="target-method">
                   Method
                 </label>
-                <input
-                  id="target-method"
-                  value={httpApp.method}
-                  onChange={(e) => updateHttpApp("method", e.target.value)}
-                  className={INPUT_CLASS}
-                />
+                <div className={FIELD_ROW_CLASS}>
+                  <span className={PROMPT_CLASS}>❯</span>
+                  <input
+                    id="target-method"
+                    value={httpApp.method}
+                    onChange={(e) => updateHttpApp("method", e.target.value)}
+                    className={FIELD_INPUT_CLASS}
+                  />
+                </div>
               </div>
 
               <div className="flex flex-col gap-xs">
-                <label className={LABEL_CLASS} htmlFor="target-url">
-                  Target URL
+                <label className={FIELD_LABEL_CLASS} htmlFor="target-url">
+                  TARGET
                 </label>
-                <input
-                  id="target-url"
-                  value={httpApp.url}
-                  onChange={(e) => {
-                    updateHttpApp("url", e.target.value);
-                    setSubmitError(null);
-                  }}
-                  onBlur={() => markTouched("url")}
-                  className={INPUT_CLASS}
-                />
+                <div className={FIELD_ROW_CLASS}>
+                  <span className={PROMPT_CLASS}>❯</span>
+                  <input
+                    id="target-url"
+                    value={httpApp.url}
+                    onChange={(e) => {
+                      updateHttpApp("url", e.target.value);
+                      setSubmitError(null);
+                    }}
+                    onBlur={() => markTouched("url")}
+                    className={FIELD_INPUT_CLASS}
+                  />
+                </div>
                 {touched.url && urlError(httpApp.url) && (
                   <p className={ERROR_CLASS}>{urlError(httpApp.url)}</p>
                 )}
@@ -338,7 +357,7 @@ export default function ScanForm({ onScanStarted, onCancel, onUnauthorized }) {
                   forced. Scrolls inside a fixed-height container past ~5
                   rows rather than growing the page unboundedly. */}
               <div className="flex flex-col gap-xs">
-                <label className={LABEL_CLASS}>Headers</label>
+                <label className={FIELD_LABEL_CLASS}>Headers</label>
                 {httpApp.headers.length > 0 && (
                   <div className="max-h-40 overflow-y-auto flex flex-col gap-sm">
                     {httpApp.headers.map((row, index) => (
@@ -347,19 +366,19 @@ export default function ScanForm({ onScanStarted, onCancel, onUnauthorized }) {
                           value={row.key}
                           onChange={(e) => updateHeaderRow(index, "key", e.target.value)}
                           placeholder="Header name"
-                          className={INPUT_CLASS}
+                          className={HEADER_INPUT_CLASS}
                         />
                         <input
                           value={row.value}
                           onChange={(e) => updateHeaderRow(index, "value", e.target.value)}
                           placeholder="Header value"
-                          className={INPUT_CLASS}
+                          className={HEADER_INPUT_CLASS}
                         />
                         <button
                           type="button"
                           onClick={() => removeHeaderRow(index)}
                           aria-label="Remove header"
-                          className="w-6 h-6 shrink-0 flex items-center justify-center rounded border border-surface-secondary text-body"
+                          className="w-6 h-6 shrink-0 flex items-center justify-center rounded-sm border border-border text-body hover:border-border-hover hover:text-text"
                         >
                           ×
                         </button>
@@ -370,34 +389,40 @@ export default function ScanForm({ onScanStarted, onCancel, onUnauthorized }) {
                 <button
                   type="button"
                   onClick={addHeaderRow}
-                  className="text-body text-accent self-start"
+                  className="text-body font-mono text-accent self-start"
                 >
                   Add header
                 </button>
               </div>
 
               <div className="flex flex-col gap-xs">
-                <label className={LABEL_CLASS} htmlFor="target-body-template">
+                <label className={FIELD_LABEL_CLASS} htmlFor="target-body-template">
                   Body Template
                 </label>
-                <textarea
-                  id="target-body-template"
-                  value={httpApp.body_template}
-                  onChange={(e) => updateHttpApp("body_template", e.target.value)}
-                  className={INPUT_CLASS + " font-mono h-40 overflow-y-auto"}
-                />
+                <div className={FIELD_ROW_TEXTAREA_CLASS}>
+                  <span className={PROMPT_CLASS + " pt-xs"}>❯</span>
+                  <textarea
+                    id="target-body-template"
+                    value={httpApp.body_template}
+                    onChange={(e) => updateHttpApp("body_template", e.target.value)}
+                    className={FIELD_TEXTAREA_CLASS}
+                  />
+                </div>
               </div>
 
               <div className="flex flex-col gap-xs">
-                <label className={LABEL_CLASS} htmlFor="target-response-path">
+                <label className={FIELD_LABEL_CLASS} htmlFor="target-response-path">
                   Response Path
                 </label>
-                <input
-                  id="target-response-path"
-                  value={httpApp.response_path}
-                  onChange={(e) => updateHttpApp("response_path", e.target.value)}
-                  className={INPUT_CLASS}
-                />
+                <div className={FIELD_ROW_CLASS}>
+                  <span className={PROMPT_CLASS}>❯</span>
+                  <input
+                    id="target-response-path"
+                    value={httpApp.response_path}
+                    onChange={(e) => updateHttpApp("response_path", e.target.value)}
+                    className={FIELD_INPUT_CLASS}
+                  />
+                </div>
               </div>
 
               {/* Collapsed by default (mirrors RawCases.jsx's D-14
@@ -415,26 +440,32 @@ export default function ScanForm({ onScanStarted, onCancel, onUnauthorized }) {
                 {sessionOpen && (
                   <div className="flex flex-col gap-md">
                     <div className="flex flex-col gap-xs">
-                      <label className={LABEL_CLASS} htmlFor="session-id-path">
+                      <label className={FIELD_LABEL_CLASS} htmlFor="session-id-path">
                         Session ID Path
                       </label>
-                      <input
-                        id="session-id-path"
-                        value={httpApp.session_id_path}
-                        onChange={(e) => updateHttpApp("session_id_path", e.target.value)}
-                        className={INPUT_CLASS}
-                      />
+                      <div className={FIELD_ROW_CLASS}>
+                        <span className={PROMPT_CLASS}>❯</span>
+                        <input
+                          id="session-id-path"
+                          value={httpApp.session_id_path}
+                          onChange={(e) => updateHttpApp("session_id_path", e.target.value)}
+                          className={FIELD_INPUT_CLASS}
+                        />
+                      </div>
                     </div>
                     <div className="flex flex-col gap-xs">
-                      <label className={LABEL_CLASS} htmlFor="session-id-header">
+                      <label className={FIELD_LABEL_CLASS} htmlFor="session-id-header">
                         Session ID Header
                       </label>
-                      <input
-                        id="session-id-header"
-                        value={httpApp.session_id_header}
-                        onChange={(e) => updateHttpApp("session_id_header", e.target.value)}
-                        className={INPUT_CLASS}
-                      />
+                      <div className={FIELD_ROW_CLASS}>
+                        <span className={PROMPT_CLASS}>❯</span>
+                        <input
+                          id="session-id-header"
+                          value={httpApp.session_id_header}
+                          onChange={(e) => updateHttpApp("session_id_header", e.target.value)}
+                          className={FIELD_INPUT_CLASS}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -443,40 +474,46 @@ export default function ScanForm({ onScanStarted, onCancel, onUnauthorized }) {
           ) : (
             <div className="flex flex-col gap-md">
               <div className="flex flex-col gap-xs">
-                <label className={LABEL_CLASS} htmlFor="raw-llm-model">
+                <label className={FIELD_LABEL_CLASS} htmlFor="raw-llm-model">
                   Model
                 </label>
-                <input
-                  id="raw-llm-model"
-                  value={rawLlm.model}
-                  onChange={(e) => {
-                    updateRawLlm("model", e.target.value);
-                    setSubmitError(null);
-                  }}
-                  onBlur={() => markTouched("model")}
-                  placeholder="openai/gpt-4o-mini"
-                  className={INPUT_CLASS}
-                />
+                <div className={FIELD_ROW_CLASS}>
+                  <span className={PROMPT_CLASS}>❯</span>
+                  <input
+                    id="raw-llm-model"
+                    value={rawLlm.model}
+                    onChange={(e) => {
+                      updateRawLlm("model", e.target.value);
+                      setSubmitError(null);
+                    }}
+                    onBlur={() => markTouched("model")}
+                    placeholder="openai/gpt-4o-mini"
+                    className={FIELD_INPUT_CLASS}
+                  />
+                </div>
                 {touched.model && requiredError(rawLlm.model) && (
                   <p className={ERROR_CLASS}>{requiredError(rawLlm.model)}</p>
                 )}
               </div>
               <div className="flex flex-col gap-xs">
-                <label className={LABEL_CLASS} htmlFor="raw-llm-api-key-env">
+                <label className={FIELD_LABEL_CLASS} htmlFor="raw-llm-api-key-env">
                   API Key Env Var
                 </label>
-                <input
-                  id="raw-llm-api-key-env"
-                  type="text"
-                  value={rawLlm.api_key_env}
-                  onChange={(e) => {
-                    updateRawLlm("api_key_env", e.target.value);
-                    setSubmitError(null);
-                  }}
-                  onBlur={() => markTouched("api_key_env")}
-                  placeholder="OPENAI_API_KEY"
-                  className={INPUT_CLASS}
-                />
+                <div className={FIELD_ROW_CLASS}>
+                  <span className={PROMPT_CLASS}>❯</span>
+                  <input
+                    id="raw-llm-api-key-env"
+                    type="text"
+                    value={rawLlm.api_key_env}
+                    onChange={(e) => {
+                      updateRawLlm("api_key_env", e.target.value);
+                      setSubmitError(null);
+                    }}
+                    onBlur={() => markTouched("api_key_env")}
+                    placeholder="OPENAI_API_KEY"
+                    className={FIELD_INPUT_CLASS}
+                  />
+                </div>
                 <p className={HELPER_CLASS}>{ENV_VAR_HELPER_TEXT}</p>
                 {touched.api_key_env && requiredError(rawLlm.api_key_env) && (
                   <p className={ERROR_CLASS}>{requiredError(rawLlm.api_key_env)}</p>
@@ -486,31 +523,46 @@ export default function ScanForm({ onScanStarted, onCancel, onUnauthorized }) {
           )}
         </section>
 
-        {/* Enabled Modules -- mid-form secondary focal point. */}
-        <section className="flex flex-col gap-md bg-surface-secondary rounded p-lg">
+        {/* Modules -- mid-form secondary focal point. Section label
+            subsumes the old separate heading + helper sentence: the live
+            selection count is now inline in the label itself. */}
+        <section className="flex flex-col gap-md bg-surface-secondary rounded-lg p-lg">
           <div className="flex items-center justify-between">
-            <h2 className="text-heading">Enabled Modules</h2>
+            <span className="font-mono text-label text-text-faint">
+              MODULES — {selectedModules.length}/10 SELECTED
+            </span>
             <button type="button" onClick={toggleSelectAll} className="text-body text-accent">
               {allModulesSelected ? "Select none" : "Select all"}
             </button>
           </div>
-          <p className={HELPER_CLASS}>
-            Select which of the 10 OWASP LLM Top 10 test modules to run. All modules are selected by default.
-          </p>
-          <div className="flex flex-col gap-sm">
-            {MODULES.map((mod) => (
-              <label key={mod.id} className="flex items-center gap-sm text-body">
-                <input
-                  type="checkbox"
-                  checked={selectedModules.includes(mod.id)}
-                  onChange={() => toggleModule(mod.id)}
-                />
-                {mod.name}
-                <span className="text-label px-xs py-xs rounded bg-surface-primary">
-                  {mod.owasp}
-                </span>
-              </label>
-            ))}
+          <div className="flex flex-col">
+            {MODULES.map((mod) => {
+              const checked = selectedModules.includes(mod.id);
+              return (
+                <label
+                  key={mod.id}
+                  className="flex items-center gap-sm font-mono text-body py-xs px-xs -mx-xs rounded-sm cursor-pointer hover:bg-surface-raised"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleModule(mod.id)}
+                    className="sr-only peer"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className={
+                      "w-6 shrink-0 rounded-sm peer-focus-visible:ring-2 peer-focus-visible:ring-accent " +
+                      (checked ? "text-accent" : "text-text-faint")
+                    }
+                  >
+                    {checked ? "[x]" : "[ ]"}
+                  </span>
+                  <span className="flex-1 text-text">{mod.name}</span>
+                  <span className="text-text-faint">{mod.owasp}</span>
+                </label>
+              );
+            })}
           </div>
           {selectedModules.length === 0 && (
             <p className={ERROR_CLASS}>Select at least one module to run.</p>
@@ -518,30 +570,36 @@ export default function ScanForm({ onScanStarted, onCancel, onUnauthorized }) {
         </section>
 
         {/* Judge Model */}
-        <section className="flex flex-col gap-md bg-surface-secondary rounded p-lg">
+        <section className="flex flex-col gap-md bg-surface-secondary rounded-lg p-lg">
           <h2 className="text-heading">Judge Model</h2>
           <div className="flex flex-col gap-xs">
-            <label className={LABEL_CLASS} htmlFor="judge-model">
+            <label className={FIELD_LABEL_CLASS} htmlFor="judge-model">
               Judge Model
             </label>
-            <input
-              id="judge-model"
-              value={judgeModel}
-              onChange={(e) => setJudgeModel(e.target.value)}
-              className={INPUT_CLASS}
-            />
+            <div className={FIELD_ROW_CLASS}>
+              <span className={PROMPT_CLASS}>❯</span>
+              <input
+                id="judge-model"
+                value={judgeModel}
+                onChange={(e) => setJudgeModel(e.target.value)}
+                className={FIELD_INPUT_CLASS}
+              />
+            </div>
           </div>
           <div className="flex flex-col gap-xs">
-            <label className={LABEL_CLASS} htmlFor="judge-api-key-env">
+            <label className={FIELD_LABEL_CLASS} htmlFor="judge-api-key-env">
               Judge API Key Env Var
             </label>
-            <input
-              id="judge-api-key-env"
-              type="text"
-              value={judgeApiKeyEnv}
-              onChange={(e) => setJudgeApiKeyEnv(e.target.value)}
-              className={INPUT_CLASS}
-            />
+            <div className={FIELD_ROW_CLASS}>
+              <span className={PROMPT_CLASS}>❯</span>
+              <input
+                id="judge-api-key-env"
+                type="text"
+                value={judgeApiKeyEnv}
+                onChange={(e) => setJudgeApiKeyEnv(e.target.value)}
+                className={FIELD_INPUT_CLASS}
+              />
+            </div>
             <p className={HELPER_CLASS}>{ENV_VAR_HELPER_TEXT}</p>
           </div>
         </section>
@@ -558,34 +616,40 @@ export default function ScanForm({ onScanStarted, onCancel, onUnauthorized }) {
             Advanced options
           </button>
           {advancedOpen && (
-            <div className="flex flex-col gap-md bg-surface-secondary rounded p-lg">
+            <div className="flex flex-col gap-md bg-surface-secondary rounded-lg p-lg">
               <div className="flex flex-col gap-xs">
-                <label className={LABEL_CLASS} htmlFor="known-system-prompt">
+                <label className={FIELD_LABEL_CLASS} htmlFor="known-system-prompt">
                   Known System Prompt (optional)
                 </label>
-                <textarea
-                  id="known-system-prompt"
-                  value={knownSystemPrompt}
-                  onChange={(e) => setKnownSystemPrompt(e.target.value)}
-                  className={INPUT_CLASS + " h-40 overflow-y-auto"}
-                />
+                <div className={FIELD_ROW_TEXTAREA_CLASS}>
+                  <span className={PROMPT_CLASS + " pt-xs"}>❯</span>
+                  <textarea
+                    id="known-system-prompt"
+                    value={knownSystemPrompt}
+                    onChange={(e) => setKnownSystemPrompt(e.target.value)}
+                    className={FIELD_TEXTAREA_CLASS}
+                  />
+                </div>
                 <p className={HELPER_CLASS}>
                   If you know the target's system prompt, paste it here to sharpen leakage detection.
                 </p>
               </div>
               <div className="flex flex-col gap-xs">
-                <label className={LABEL_CLASS} htmlFor="max-concurrency">
+                <label className={FIELD_LABEL_CLASS} htmlFor="max-concurrency">
                   Max Concurrency
                 </label>
-                <input
-                  id="max-concurrency"
-                  type="number"
-                  min="1"
-                  max="50"
-                  value={maxConcurrency}
-                  onChange={(e) => setMaxConcurrency(e.target.value)}
-                  className={INPUT_CLASS}
-                />
+                <div className={FIELD_ROW_CLASS}>
+                  <span className={PROMPT_CLASS}>❯</span>
+                  <input
+                    id="max-concurrency"
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={maxConcurrency}
+                    onChange={(e) => setMaxConcurrency(e.target.value)}
+                    className={FIELD_INPUT_CLASS}
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -623,11 +687,13 @@ export default function ScanForm({ onScanStarted, onCancel, onUnauthorized }) {
           type="submit"
           disabled={submitDisabled}
           className={
-            "px-md py-sm rounded text-body self-start " +
-            (submitDisabled ? "bg-surface-secondary opacity-50 cursor-not-allowed" : "bg-accent")
+            "w-full text-body font-mono rounded px-md py-sm " +
+            (submitDisabled
+              ? "bg-surface-secondary opacity-50 cursor-not-allowed"
+              : "bg-accent hover:bg-accent-hover hover:shadow-glow-accent")
           }
         >
-          {submitting ? "Starting…" : "Start Scan"}
+          {submitting ? "Starting…" : "$ start_scan"}
         </button>
       </form>
     </div>

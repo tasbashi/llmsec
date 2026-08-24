@@ -44,7 +44,7 @@ const DISCLAIMER_SUFFIX =
 
 export default function AuthorizationPanel({ targetSummary, checked, onChange }) {
   return (
-    <div className="border-l-4 border-severity-medium bg-surface-secondary rounded p-lg flex flex-col gap-md">
+    <div className="border-l-4 border-severity-medium bg-surface-secondary rounded-lg p-lg flex flex-col gap-md">
       <div className="flex items-center gap-sm text-severity-medium">
         <WarningTriangleIcon />
         <h2 className="text-heading">Authorization Required</h2>
@@ -58,7 +58,7 @@ export default function AuthorizationPanel({ targetSummary, checked, onChange })
 
       <div>
         <p className="text-label uppercase tracking-wide mb-xs">You are about to scan:</p>
-        <div className="border border-surface-primary rounded p-md font-mono text-body break-words">
+        <div className="border border-border rounded-md p-md font-mono text-body break-words bg-surface-primary">
           {targetSummary}
         </div>
       </div>

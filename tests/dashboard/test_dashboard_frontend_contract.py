@@ -37,9 +37,12 @@ PACKAGE_JSON = FRONTEND_SRC.parent / "package.json"
 # five empty/error strings (10-04) -- every literal quoted verbatim from
 # 10-UI-SPEC.md's Copywriting Contract table.
 COPY_STRINGS: list[tuple[str, str]] = [
-    # LoginForm.jsx (10-01, unchanged by this plan -- pinned so a later edit
-    # cannot silently drift the login copy either).
-    ("Unlock Dashboard", "components/LoginForm.jsx"),
+    # LoginForm.jsx (10-01, terminal-framed by 12-01 per D-12-05 -- the
+    # submit label changed to `$ unlock`; the 401/503/fallback strings stay
+    # byte-for-byte).
+    ("$ unlock", "components/LoginForm.jsx"),
+    ("❯ authenticate", "components/LoginForm.jsx"),
+    ("DASHBOARD TOKEN", "components/LoginForm.jsx"),
     (
         "Invalid token. Double-check `LLMSEC_DASHBOARD_TOKEN` and try again.",
         "components/LoginForm.jsx",
@@ -49,20 +52,30 @@ COPY_STRINGS: list[tuple[str, str]] = [
         "components/LoginForm.jsx",
     ),
     ("Couldn't load reports. Check your connection and try again.", "components/LoginForm.jsx"),
-    # FilterBar.jsx (10-04 Task 2)
+    # CommandStrip.jsx (12-02 Task 2) -- shell brand + primary CTA.
+    ("://", "components/CommandStrip.jsx"),
+    ("+ new_scan", "components/CommandStrip.jsx"),
+    # FilterBar.jsx (10-04 Task 2, chrome reframed by 12-02 Task 2 per D-12-07 --
+    # the select/chip controls and their copy below are unchanged)
     ("Loading filters…", "components/FilterBar.jsx"),
     ("Filters unavailable", "components/FilterBar.jsx"),
     ("All targets", "components/FilterBar.jsx"),
     ("Any severity", "components/FilterBar.jsx"),
+    ("grep target, module, severity…", "components/FilterBar.jsx"),
     # ReportList.jsx (10-04 Task 3)
     ("No scan reports yet", "components/ReportList.jsx"),
     ("Run `llmsec scan` from the CLI", "components/ReportList.jsx"),
     ("No reports match these filters", "components/ReportList.jsx"),
     ("Try clearing one or more filters", "components/ReportList.jsx"),
     ("Couldn't load reports.", "components/ReportList.jsx"),
-    # ReportDetail.jsx (10-05 Task 2)
-    ("Download JSON", "components/ReportDetail.jsx"),
+    # ReportDetail.jsx (10-05 Task 2, terminal-framed by 12-03 Task 2 per
+    # D-12-*: the download action's label changed to `↓ download.json`; two
+    # new pins below (`llmsec://report/`, `SEVERITY BREAKDOWN`) cover the
+    # new mono header/section-label copy this same task introduces)
+    ("↓ download.json", "components/ReportDetail.jsx"),
     ("Downloading", "components/ReportDetail.jsx"),
+    ("llmsec://report/", "components/ReportDetail.jsx"),
+    ("SEVERITY BREAKDOWN", "components/ReportDetail.jsx"),
     ("Couldn't download this report. Try again.", "components/ReportDetail.jsx"),
     (
         "This report doesn't exist or its scan id is invalid.",
@@ -108,11 +121,8 @@ COPY_STRINGS: list[tuple[str, str]] = [
     ),
     # ScanForm.jsx (11-03 Task 1) -- 11-UI-SPEC.md Copywriting Contract.
     ("New Scan", "components/ScanForm.jsx"),
-    ("Enabled Modules", "components/ScanForm.jsx"),
-    (
-        "Select which of the 10 OWASP LLM Top 10 test modules to run. All modules are selected by default.",
-        "components/ScanForm.jsx",
-    ),
+    ("MODULES — ", "components/ScanForm.jsx"),
+    ("/10 SELECTED", "components/ScanForm.jsx"),
     ("Select at least one module to run.", "components/ScanForm.jsx"),
     (
         "Environment variable name only — never paste a literal API key here.",
@@ -124,7 +134,7 @@ COPY_STRINGS: list[tuple[str, str]] = [
     ),
     ("Advanced options", "components/ScanForm.jsx"),
     ("Add header", "components/ScanForm.jsx"),
-    ("Start Scan", "components/ScanForm.jsx"),
+    ("$ start_scan", "components/ScanForm.jsx"),
     ("Starting…", "components/ScanForm.jsx"),
     ("This field is required.", "components/ScanForm.jsx"),
     ("This target can't be scanned.", "components/ScanForm.jsx"),

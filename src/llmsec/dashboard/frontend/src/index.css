@@ -4,7 +4,6 @@
 
 @layer base {
   body {
-    @apply bg-surface-primary text-body font-sans;
-    color: #e5e7eb;
+    @apply bg-surface-primary text-body font-sans text-text;
   }
 }

@@ -1,49 +1,13 @@
 // Purely presentational -- declares no effect, issues no network call, and
 // schedules no timer. App.jsx owns every poll and passes the parsed status
-// body (or the lost-scan sentinel) down as `status`. The stepper's fill is
-// a direct function of the phase string alone: no percentage, no
-// elapsed/remaining estimate, no advance between polls (DASH-06's
-// never-fabricate-progress contract).
+// body (or the lost-scan sentinel) down as `status`. The phase tag and the
+// log panel are both driven by a single `currentIndex` derivation (one
+// `STEPS.findIndex(` call, D-12-03): no percentage, no elapsed/remaining
+// estimate, no advance between polls, no line for a phase the server has
+// not reported yet (DASH-06's never-fabricate-progress contract).
 
 // Same inline-glyph discipline as RawCases.jsx/AuthorizationPanel.jsx --
 // no icon-library dependency.
-function CheckmarkIcon() {
-  return (
-    <svg
-      className="w-4 h-4 stroke-current text-surface-primary"
-      viewBox="0 0 24 24"
-      fill="none"
-      strokeWidth="3"
-      aria-hidden="true"
-    >
-      <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-// Spinner glyph -- an inline SVG circle with `animate-spin`, no new
-// dependency (UI-SPEC Icon library row).
-function SpinnerIcon() {
-  return (
-    <svg
-      className="w-4 h-4 animate-spin text-surface-primary"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <circle
-        cx="12"
-        cy="12"
-        r="9"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeDasharray="40 60"
-      />
-    </svg>
-  );
-}
-
 function AlertIcon() {
   return (
     <svg className="w-4 h-4 stroke-current shrink-0" viewBox="0 0 24 24" fill="none" strokeWidth="2" aria-hidden="true">
@@ -64,42 +28,49 @@ const STEPS = [
   { phase: "complete", label: "Complete", subtext: "Scan complete." },
 ];
 
-const CIRCLE_BASE = "w-10 h-10 rounded-full flex items-center justify-center shrink-0";
-
-// Shared by the complete-state and in-progress-state `if` blocks below --
-// each is still its own structurally separate conditional/return (never
-// one shared parameterized block deciding which branch to take); only the
-// stepper's own markup is factored out to avoid literal duplication.
-function Stepper({ currentIndex, allDone }) {
+// Mono uppercase pill carrying the current step's label -- replaces the
+// deleted stepper widget. `running` and `complete` read as the accent
+// "this is the active/finished signal" tone; `queued`/`scoring` stay muted
+// since they are waiting states, not the state carrying the live spinner.
+function PhaseTag({ phase, label }) {
+  const toneClass =
+    phase === "queued" || phase === "scoring"
+      ? "text-text-muted bg-surface-secondary"
+      : "text-accent bg-accent-dim";
   return (
-    <div className="flex items-center w-full max-w-2xl">
-      {STEPS.map((step, index) => {
-        const state = allDone || index < currentIndex ? "done" : index === currentIndex ? "active" : "future";
-        return (
-          <div key={step.phase} className="flex items-center flex-1 last:flex-none">
-            <div className="flex flex-col items-center gap-xs">
-              <div
-                className={
-                  CIRCLE_BASE + " " + (state === "future" ? "bg-surface-secondary" : "bg-accent")
-                }
-              >
-                {state === "done" && <CheckmarkIcon />}
-                {state === "active" && <SpinnerIcon />}
-              </div>
-              <span className={"text-label" + (state === "future" ? " opacity-50" : "")}>
-                {step.label}
-              </span>
-            </div>
-            {index < STEPS.length - 1 && (
-              <div
-                className={
-                  "flex-1 h-px mx-sm " + (state === "done" ? "bg-accent" : "bg-surface-secondary")
-                }
-              />
-            )}
+    <span
+      className={
+        "font-mono text-label uppercase tracking-wide px-sm py-xs rounded-sm shrink-0 " + toneClass
+      }
+    >
+      {label}
+    </span>
+  );
+}
+
+// The observed-phase log panel (D-12-03): its content is a pure function of
+// `currentIndex` -- one line for every STEPS entry at an index less than or
+// equal to currentIndex, each line built from that entry's OWN `phase` and
+// `subtext` fields. This is exactly the fill rule the deleted stepper
+// already used (`index <= currentIndex` was "filled"), re-expressed as
+// lines instead of circles -- it never synthesises per-request detail and
+// never renders a line for a phase the index has not reached.
+function LogPanel({ currentIndex, showCursor }) {
+  return (
+    <div className="w-full h-[260px] overflow-y-auto bg-surface-sunken border border-border rounded-md px-md py-sm font-mono text-label leading-relaxed text-text-muted">
+      {STEPS.map((step, index) =>
+        index <= currentIndex ? (
+          <div key={step.phase}>
+            [{step.phase}] {step.subtext}
           </div>
-        );
-      })}
+        ) : null
+      )}
+      {showCursor && (
+        <span
+          className="inline-block w-[7px] h-[14px] bg-accent animate-blink align-text-bottom"
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 }
@@ -120,7 +91,7 @@ export default function ScanProgress({ scanId, status, onViewReport, onBackToRep
           <button
             type="button"
             onClick={onBackToReports}
-            className="text-body px-md py-sm rounded border border-surface-secondary hover:border-accent"
+            className="text-body px-md py-sm rounded border border-border hover:border-accent"
           >
             Back to Reports
           </button>
@@ -129,24 +100,26 @@ export default function ScanProgress({ scanId, status, onViewReport, onBackToRep
     );
   }
 
-  // Failed state: replaces the stepper entirely (never a partially-coloured
-  // stepper, which would imply a phase attribution the status endpoint
-  // never made).
+  // Failed state: replaces the phase tag + log panel entirely (never a
+  // partially-filled log, which would imply a phase-reached claim the
+  // status store never made -- `set_failed()` discards the last-known
+  // phase, so no history is ever synthesised here).
   if (status?.phase === "failed") {
     return (
       <div className="min-h-screen bg-surface-primary px-xl py-3xl flex flex-col items-center gap-lg">
-        <div className="max-w-2xl w-full border-l-4 border-destructive bg-surface-secondary rounded p-lg flex flex-col gap-md">
+        <div className="max-w-2xl w-full border-l-4 border-destructive bg-surface-secondary rounded-lg p-lg flex flex-col gap-md">
           <div className="flex items-center gap-sm text-destructive">
             <AlertIcon />
             <h1 className="text-heading">Scan Failed</h1>
           </div>
           {/* Never a stack trace -- the one-line exception summary the
-              store recorded. Never clamped/truncated (same
+              store recorded, rendered as a mono destructive log line
+              (never a generic message). Never clamped/truncated (same
               never-truncate-a-diagnostic rule as ReportDetail.jsx's
               `scan-limitations`/`deep-summary` containers) -- this
               element carries no truncate/clamp/overflow-hiding/max-h
               utility. */}
-          <p data-testid="scan-failure-detail" className="text-body">
+          <p data-testid="scan-failure-detail" className="font-mono text-body text-destructive">
             {"Scan failed: "}
             {status.error}
             {". Run `llmsec scan` from the CLI with the same configuration for full error detail."}
@@ -155,14 +128,14 @@ export default function ScanProgress({ scanId, status, onViewReport, onBackToRep
             <button
               type="button"
               onClick={onBackToReports}
-              className="text-body px-md py-sm rounded border border-surface-secondary hover:border-accent"
+              className="text-body px-md py-sm rounded border border-border hover:border-accent"
             >
               Back to Reports
             </button>
             <button
               type="button"
               onClick={onTryAgain}
-              className="text-body px-md py-sm rounded border border-surface-secondary hover:border-accent"
+              className="text-body px-md py-sm rounded border border-border hover:border-accent"
             >
               Try Again
             </button>
@@ -176,9 +149,9 @@ export default function ScanProgress({ scanId, status, onViewReport, onBackToRep
   const activeStep = STEPS[currentIndex] ?? STEPS[0];
 
   // Complete state: its own structurally separate conditional/return
-  // (never merely a flag branching inside the in-progress render) -- all
-  // four steps filled (checkmark, never a spinner) plus the success panel
-  // handing off to Phase 10's existing report-detail view.
+  // (never merely a flag branching inside the in-progress render) -- the
+  // full log shown at once with a blinking cursor, no spinner, plus the
+  // success panel handing off to Phase 10's existing report-detail view.
   if (status?.phase === "complete") {
     return (
       <div className="min-h-screen bg-surface-primary px-xl py-3xl flex flex-col items-center gap-xl">
@@ -186,12 +159,17 @@ export default function ScanProgress({ scanId, status, onViewReport, onBackToRep
         <p className="text-label text-body">
           Scan ID: <span className="font-mono">{scanId}</span>
         </p>
-        <Stepper currentIndex={currentIndex} allDone />
-        <p className="text-body">{activeStep.subtext}</p>
+        <div className="w-full max-w-2xl flex flex-col gap-md">
+          <div className="flex items-center gap-sm">
+            <PhaseTag phase={status?.phase} label={activeStep.label} />
+            <span className="text-body text-text-muted">{activeStep.subtext}</span>
+          </div>
+          <LogPanel currentIndex={currentIndex} showCursor />
+        </div>
         <button
           type="button"
           onClick={onViewReport}
-          className="bg-accent text-body px-md py-sm rounded"
+          className="bg-accent text-body font-mono rounded px-md py-sm hover:bg-accent-hover hover:shadow-glow-accent"
         >
           View Report
         </button>
@@ -199,15 +177,25 @@ export default function ScanProgress({ scanId, status, onViewReport, onBackToRep
     );
   }
 
-  // Happy path: queued / running / scoring.
+  // Happy path: queued / running / scoring. The `◐` glyph is text in a
+  // span with Tailwind's built-in spin animation -- CSS-rotated, no timer,
+  // no new dependency.
   return (
     <div className="min-h-screen bg-surface-primary px-xl py-3xl flex flex-col items-center gap-xl">
       <h1 className="text-heading">Scan in Progress</h1>
       <p className="text-label text-body">
         Scan ID: <span className="font-mono">{scanId}</span>
       </p>
-      <Stepper currentIndex={currentIndex} allDone={false} />
-      <p className="text-body">{activeStep.subtext}</p>
+      <div className="w-full max-w-2xl flex flex-col gap-md">
+        <div className="flex items-center gap-sm">
+          <PhaseTag phase={status?.phase} label={activeStep.label} />
+          <span className="text-body text-text-muted">{activeStep.subtext}</span>
+          <span className="ml-auto text-accent animate-spin" aria-hidden="true">
+            ◐
+          </span>
+        </div>
+        <LogPanel currentIndex={currentIndex} showCursor={false} />
+      </div>
     </div>
   );
 }

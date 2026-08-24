@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, clearToken, getToken } from "./api.js";
 import LoginForm from "./components/LoginForm.jsx";
-import FilterBar from "./components/FilterBar.jsx";
+import CommandStrip from "./components/CommandStrip.jsx";
 import ReportList from "./components/ReportList.jsx";
 import ReportDetail from "./components/ReportDetail.jsx";
 import ScanForm from "./components/ScanForm.jsx";
@@ -322,7 +322,7 @@ export default function App() {
           <button
             type="button"
             onClick={handleBackToReports}
-            className="text-body text-accent hover:underline"
+            className="font-mono text-body text-text-muted hover:text-accent"
           >
             ← Back to reports
           </button>
@@ -367,30 +367,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-surface-primary">
-      <header className="flex items-center justify-between px-xl py-lg">
-        <h1 className="text-display">Scan Reports</h1>
-        <div className="flex items-center gap-md">
-          <button
-            onClick={handleStartNewScan}
-            className="bg-accent text-body px-md py-sm rounded"
-          >
-            New Scan
-          </button>
-          <button
-            onClick={handleLogout}
-            className="text-body px-md py-sm rounded border border-surface-secondary hover:border-accent"
-          >
-            Log Out
-          </button>
-        </div>
-      </header>
-      <main className="px-xl flex flex-col gap-lg">
-        <FilterBar
-          options={filterOptions}
-          state={filtersState}
-          value={filters}
-          onChange={setFilters}
-        />
+      <CommandStrip
+        reports={reports}
+        filterOptions={filterOptions}
+        filtersState={filtersState}
+        filters={filters}
+        onFiltersChange={setFilters}
+        onStartNewScan={handleStartNewScan}
+        onLogout={handleLogout}
+      />
+      <main className="px-xl pt-xl flex flex-col gap-lg">
         <ReportList
           reports={reports}
           state={reportsState}
