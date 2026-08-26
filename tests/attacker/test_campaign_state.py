@@ -107,7 +107,7 @@ def test_adding_more_than_cap_keeps_exactly_memory_cap():
 
 
 def test_queue_eligible_verdicts_exact_set():
-    assert QUEUE_ELIGIBLE_VERDICTS == {Verdict.BLOCKED, Verdict.PARTIAL_LEAK}
+    assert {Verdict.BLOCKED, Verdict.PARTIAL_LEAK} == QUEUE_ELIGIBLE_VERDICTS
     assert Verdict.UNCERTAIN not in QUEUE_ELIGIBLE_VERDICTS
     assert Verdict.FULL_COMPROMISE not in QUEUE_ELIGIBLE_VERDICTS
 

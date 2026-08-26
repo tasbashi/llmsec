@@ -20,7 +20,12 @@ module-scope imports.
 from __future__ import annotations
 
 from llmsec.attacker.runner import CampaignResult
-from llmsec.attacker.state import ROLE_NAMES, QUEUE_ELIGIBLE_VERDICTS, BudgetLedger, RoleSpend
+from llmsec.attacker.state import (
+    QUEUE_ELIGIBLE_VERDICTS,
+    ROLE_NAMES,
+    BudgetLedger,
+    RoleSpend,
+)
 from llmsec.models import DeepModeSummary, EvalResult, Finding, RoleActivity
 from llmsec.scoring.engine import Severity, score
 

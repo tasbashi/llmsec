@@ -291,7 +291,7 @@ async def test_duplicate_mutator_response_is_rejected_never_dispatched(
     # Every attempt was genuinely made (the bounded retry exhausted for
     # real), and NOTHING was dispatched as a result -- the duplicate-laden
     # response never reached `dispatch_variants_node`.
-    assert mutator_model._call_index == MAX_STRUCTURED_OUTPUT_RETRIES + 1  # noqa: SLF001
+    assert mutator_model._call_index == MAX_STRUCTURED_OUTPUT_RETRIES + 1
     assert final_state.get("dispatch_results", []) == []
     assert adapter.sent_cases == []
     assert final_state.get("termination_reason") is not None

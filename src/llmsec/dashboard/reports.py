@@ -148,9 +148,7 @@ def matches_filters(
         return False
     if modules and not set(modules).issubset(summary.module_ids):
         return False
-    if severity and summary.max_severity != severity:
-        return False
-    return True
+    return not (severity and summary.max_severity != severity)
 
 
 def list_summaries(

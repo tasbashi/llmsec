@@ -51,8 +51,15 @@ import logging
 import re
 from typing import AsyncIterator, Literal, NamedTuple
 
-from llmsec.detection.judge import DEFAULT_JUDGE_MODEL, MAX_RESPONSE_CHARS, judge_output_handling
-from llmsec.detection.output_patterns import classify_output_handling, find_output_match_spans
+from llmsec.detection.judge import (
+    DEFAULT_JUDGE_MODEL,
+    MAX_RESPONSE_CHARS,
+    judge_output_handling,
+)
+from llmsec.detection.output_patterns import (
+    classify_output_handling,
+    find_output_match_spans,
+)
 from llmsec.detection.regex_rules import (
     CONTRASTIVE_HEDGE_PATTERNS,
     REFUSAL_PATTERNS,
@@ -233,9 +240,7 @@ def _is_clean_refusal(text: str) -> bool:
         return False
     if any(re.search(pattern, text, re.IGNORECASE) for pattern in CONTRASTIVE_HEDGE_PATTERNS):
         return False
-    if any(re.search(pattern, text, re.IGNORECASE) for pattern in SENTENCE_PIVOT_PATTERNS):
-        return False
-    return True
+    return not any(re.search(pattern, text, re.IGNORECASE) for pattern in SENTENCE_PIVOT_PATTERNS)
 
 
 # Segment-boundary pattern for `_match_is_prose_quoted()`: either
@@ -765,14 +770,14 @@ class InsecureOutputModule(BaseModule):
         )
 
         if full_compromise_index is not None:
-            verdict, confidence, layer, note = classifications[full_compromise_index]
+            verdict, confidence, layer, note = classifications[full_compromise_index]  # type: ignore[misc]
             cited_index = full_compromise_index
         elif all(classification is not None for classification in classifications):
             worst_index = max(
                 range(len(classifications)),
                 key=lambda i: _VERDICT_RANK[classifications[i][0]],  # type: ignore[index]
             )
-            verdict, confidence, layer, note = classifications[worst_index]
+            verdict, confidence, layer, note = classifications[worst_index]  # type: ignore[misc]
             cited_index = worst_index
         else:
             deterministic_indices = [
@@ -859,7 +864,7 @@ def _assemble_evidence(
     lines: list[str] = []
 
     if len(texts) > 1:
-        for i, text in enumerate(texts):
+        for i, _text in enumerate(texts):
             classification = classifications[i]
             turn_note = (
                 classification[3] if classification is not None else "deferred to judge"

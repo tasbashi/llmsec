@@ -26,15 +26,27 @@ import pytest
 import llmsec.attacker.graph as graph_module
 from llmsec.attacker.audit import audit_path_for
 from llmsec.attacker.config import DEFAULT_ENABLED_TECHNIQUES, AttackerConfig
-from llmsec.attacker.graph import _CLOSED_TECHNIQUE_VOCABULARY, TechniqueNotAllowed, validate_technique
+from llmsec.attacker.graph import (
+    _CLOSED_TECHNIQUE_VOCABULARY,
+    TechniqueNotAllowed,
+    validate_technique,
+)
 from llmsec.attacker.roles import ROLE_REGISTRY
-from llmsec.attacker.roles.mutator import MutatedVariant, build_mutator_agent
-from llmsec.attacker.roles.mutator import _VALID_TECHNIQUE_FAMILIES
+from llmsec.attacker.roles.mutator import (
+    _VALID_TECHNIQUE_FAMILIES,
+    MutatedVariant,
+    build_mutator_agent,
+)
 from llmsec.attacker.roles.strategist import StrategistOutput, build_strategist_agent
 from llmsec.attacker.runner import run_attacker_campaign
 from llmsec.config import ScanConfig, TargetConfig
 from llmsec.models import EvalResult, ScanContext, TargetResponse, TestCase, Verdict
-from llmsec.payloads.schema import PiiAttackVector, PoisoningTechniqueVector, SupplyChainTechniqueVector, TechniqueFamily
+from llmsec.payloads.schema import (
+    PiiAttackVector,
+    PoisoningTechniqueVector,
+    SupplyChainTechniqueVector,
+    TechniqueFamily,
+)
 from llmsec.plugins.base import BaseModule
 
 _STATIC_CASE_ID = "STUB-001"

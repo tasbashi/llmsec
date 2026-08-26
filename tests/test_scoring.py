@@ -246,5 +246,5 @@ def test_credential_patterns_and_escalation_patterns_untouched_by_pii_taxonomy()
         r"AKIA[A-Z0-9]{16}",
         r"[A-Za-z0-9_-]{32,}",
     ]
-    assert _ESCALATION_PATTERNS == _CREDENTIAL_PATTERNS[:2]
+    assert _CREDENTIAL_PATTERNS[:2] == _ESCALATION_PATTERNS
     assert len(_ESCALATION_PATTERNS) == 2

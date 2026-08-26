@@ -15,7 +15,7 @@ import pytest
 
 pytest.importorskip("fastapi", reason='dashboard suite requires pip install -e ".[dashboard,dev]"')
 
-from llmsec.dashboard.reports import (  # noqa: E402
+from llmsec.dashboard.reports import (
     FilterOptions,
     ReportSummary,
     distinct_filter_values,
@@ -23,9 +23,9 @@ from llmsec.dashboard.reports import (  # noqa: E402
     matches_filters,
     max_severity,
 )
-from llmsec.models import ScanReport  # noqa: E402
-from llmsec.reporting.json_reporter import load_report  # noqa: E402
-from llmsec.scoring.engine import Severity  # noqa: E402
+from llmsec.models import ScanReport
+from llmsec.reporting.json_reporter import load_report
+from llmsec.scoring.engine import Severity
 
 #: At least seven hostile `scan_id` shapes (RESEARCH.md Pitfall #5 / T-10-01):
 #: raw dot-segments, single- and double-percent-encoded dot-segments, an
@@ -46,15 +46,15 @@ HOSTILE_SCAN_IDS = [
 def _summary(**overrides: object) -> ReportSummary:
     """Build a `ReportSummary` directly -- `matches_filters()`'s unit tests
     don't need a real report file on disk."""
-    defaults: dict[str, object] = dict(
-        scan_id="a" * 32,
-        target_summary="http_app:POST http://127.0.0.1:8000/chat",
-        module_ids=["a", "b"],
-        max_severity="high",
-        finding_count=1,
-        started_at="2026-08-19T00:00:00Z",
-        completed_at="2026-08-19T00:05:00Z",
-    )
+    defaults: dict[str, object] = {
+        "scan_id": "a" * 32,
+        "target_summary": "http_app:POST http://127.0.0.1:8000/chat",
+        "module_ids": ["a", "b"],
+        "max_severity": "high",
+        "finding_count": 1,
+        "started_at": "2026-08-19T00:00:00Z",
+        "completed_at": "2026-08-19T00:05:00Z",
+    }
     defaults.update(overrides)
     return ReportSummary(**defaults)  # type: ignore[arg-type]
 

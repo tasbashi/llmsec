@@ -21,7 +21,11 @@ from typing import AsyncIterator
 
 from llmsec.attacker.config import AttackerConfig
 from llmsec.attacker.roles import ROLE_REGISTRY
-from llmsec.attacker.roles.mutator import MutatedVariant, MutatorOutput, build_mutator_agent
+from llmsec.attacker.roles.mutator import (
+    MutatedVariant,
+    MutatorOutput,
+    build_mutator_agent,
+)
 from llmsec.attacker.roles.strategist import (
     StrategistOutput,
     _strategist_brief,

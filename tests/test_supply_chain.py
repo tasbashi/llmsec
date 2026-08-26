@@ -29,6 +29,7 @@ import pytest
 from llmsec.detection.judge import PackageExtraction
 from llmsec.models import EvalResult, ScanContext, TargetResponse, TestCase, Verdict
 from llmsec.modules.supply_chain import (
+    _OSV_QUERYBATCH_URL,
     AUDIT_CASE_ID_CLEAN,
     AUDIT_CASE_ID_EXTRA_MISSING,
     AUDIT_CASE_ID_MANIFEST_MISSING,
@@ -36,16 +37,16 @@ from llmsec.modules.supply_chain import (
     AUDIT_CASE_ID_OSV_UNREACHABLE,
     PYPI_INDEX_SNAPSHOT_AS_OF,
     SLOPSQUATTING_CASE_ID_PREFIX,
+    SupplyChainModule,
     _classify_package_existence,
     _extract_package_names,
+    _fetch_osv_details,
     _is_negated_match,
     _load_package_index,
     _merge_advisories,
     _normalise_package_name,
     _normalize_package_name,
     _OsvUnreachableError,
-    _OSV_QUERYBATCH_URL,
-    _fetch_osv_details,
     _PipAuditFailure,
     _PipAuditTimeoutError,
     _PipAuditUnpinnedManifestError,
@@ -53,7 +54,6 @@ from llmsec.modules.supply_chain import (
     _run_osv_tier,
     _run_pip_audit,
     index_snapshot_limitation_note,
-    SupplyChainModule,
     supply_chain_extra_available,
 )
 from llmsec.payloads import load_corpus

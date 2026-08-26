@@ -35,7 +35,12 @@ from llmsec.attacker.budget import (
     target_call_cost,
 )
 from llmsec.attacker.config import AttackerConfig, resolve_settings
-from llmsec.attacker.state import BudgetLedger, CampaignState, RoleSpend, new_campaign_state
+from llmsec.attacker.state import (
+    BudgetLedger,
+    CampaignState,
+    RoleSpend,
+    new_campaign_state,
+)
 
 from .conftest import ScriptedToolCallChatModel
 

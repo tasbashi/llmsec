@@ -107,9 +107,7 @@ def _is_agency_refusal(text: str) -> bool:
         return False
     if any(re.search(pattern, text, re.IGNORECASE) for pattern in CONTRASTIVE_HEDGE_PATTERNS):
         return False
-    if any(re.search(pattern, text, re.IGNORECASE) for pattern in SENTENCE_PIVOT_PATTERNS):
-        return False
-    return True
+    return not any(re.search(pattern, text, re.IGNORECASE) for pattern in SENTENCE_PIVOT_PATTERNS)
 
 
 _UNRESOLVED_ENTRY_NOTE = (

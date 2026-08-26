@@ -15,7 +15,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Callable
 
-from llmsec.models import TestCase, TargetResponse
+from llmsec.models import TargetResponse, TestCase
 
 
 class TargetAdapter(ABC):

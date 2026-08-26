@@ -185,7 +185,7 @@ def test_output_golden_dataset_shape():
 
     for line_no, case in GOLDEN_DATASET:
         for field in _REQUIRED_FIELDS:
-            assert field in case and case[field], f"line {line_no} missing/empty {field!r}"
+            assert case.get(field), f"line {line_no} missing/empty {field!r}"
         # golden_verdict/rendering_context must be real enum/locked values.
         Verdict(case["golden_verdict"])
 

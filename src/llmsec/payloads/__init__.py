@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 CORPUS_DIR_PACKAGE = "llmsec.modules.payloads"
 
-__all__ = ["load_corpus", "PayloadEntry", "CORPUS_DIR_PACKAGE"]
+__all__ = ["CORPUS_DIR_PACKAGE", "PayloadEntry", "load_corpus"]
 
 
 def _corpus_path(name: str):

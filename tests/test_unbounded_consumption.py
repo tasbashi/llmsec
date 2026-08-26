@@ -136,7 +136,7 @@ class TestScoreByThreshold:
         trivially pass) or as a signal firing -- it is UNAVAILABLE, and the
         latency signal alone decides the verdict."""
         response = _response(tokens_used=None, latency_ms=20000.0)
-        verdict, confidence, evidence = _score_by_threshold(response, 2000, 15000.0)
+        verdict, _confidence, evidence = _score_by_threshold(response, 2000, 15000.0)
         assert verdict is Verdict.PARTIAL_LEAK
         assert "latency 20000ms exceeded threshold 15000ms" in evidence
 

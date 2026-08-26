@@ -34,21 +34,21 @@ _REQUIRED_FIELDS = {
 
 
 def _line(**overrides) -> AuditLine:
-    base = dict(
-        seq=0,
-        timestamp="2026-08-05T00:00:00+00:00",
-        scan_id="scan-1",
-        agent="strategist",
-        role="strategist",
-        direction="outbound",
-        round=1,
-        module_id="prompt_injection",
-        case_id="DIRECT-001",
-        event="model_end",
-        content="hello",
-        cost_usd=0.001,
-        tokens=42,
-    )
+    base = {
+        "seq": 0,
+        "timestamp": "2026-08-05T00:00:00+00:00",
+        "scan_id": "scan-1",
+        "agent": "strategist",
+        "role": "strategist",
+        "direction": "outbound",
+        "round": 1,
+        "module_id": "prompt_injection",
+        "case_id": "DIRECT-001",
+        "event": "model_end",
+        "content": "hello",
+        "cost_usd": 0.001,
+        "tokens": 42,
+    }
     base.update(overrides)
     return AuditLine(**base)
 
@@ -57,7 +57,7 @@ def _line(**overrides) -> AuditLine:
 
 
 def test_audit_line_field_set_is_a_superset_of_the_d85_required_fields():
-    assert _REQUIRED_FIELDS <= set(AuditLine.model_fields)
+    assert set(AuditLine.model_fields) >= _REQUIRED_FIELDS
 
 
 def test_audit_line_direction_admits_exactly_the_closed_literal_values():

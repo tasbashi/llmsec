@@ -377,7 +377,10 @@ class TestSiblingIsolation:
         responses = [_response(e.id) for e in entries[:3]]
 
         results = await asyncio.gather(
-            *(module.evaluate(case, response) for case, response in zip(cases, responses))
+            *(
+                module.evaluate(case, response)
+                for case, response in zip(cases, responses, strict=True)
+            )
         )
 
         assert len(results) == 3

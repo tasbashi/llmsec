@@ -21,7 +21,12 @@ import logging
 
 import instructor.exceptions
 
-from llmsec.detection.judge import JudgeVerdict, PackageExtraction, judge_extract_packages, judge_pii
+from llmsec.detection.judge import (
+    JudgeVerdict,
+    PackageExtraction,
+    judge_extract_packages,
+    judge_pii,
+)
 from llmsec.detection.judge_prompts import (
     EXTRACTION_PROMPT_VERSION,
     INJECTION_JUDGE_SYSTEM_PROMPT,

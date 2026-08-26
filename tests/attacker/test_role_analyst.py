@@ -18,7 +18,11 @@ from llmsec.attacker.graph import build_campaign_graph
 from llmsec.attacker.roles import ROLE_REGISTRY
 from llmsec.attacker.roles._structured_retry import MAX_STRUCTURED_OUTPUT_RETRIES
 from llmsec.attacker.roles.analyst import ObservedDefence, build_analyst_agent
-from llmsec.attacker.roles.mutator import MutatedVariant, MutatorOutput, build_mutator_agent
+from llmsec.attacker.roles.mutator import (
+    MutatedVariant,
+    MutatorOutput,
+    build_mutator_agent,
+)
 from llmsec.attacker.roles.strategist import StrategistOutput, build_strategist_agent
 from llmsec.attacker.state import QueuedCase, new_campaign_state
 from llmsec.models import EvalResult, TargetResponse, TestCase, Verdict

@@ -16,7 +16,11 @@ from __future__ import annotations
 from llmsec.attacker.budget import mark_truncated, truncation_disclosure
 from llmsec.attacker.config import AttackerConfig
 from llmsec.attacker.roles import ROLE_REGISTRY
-from llmsec.attacker.roles.mutator import MutatedVariant, MutatorOutput, build_mutator_agent
+from llmsec.attacker.roles.mutator import (
+    MutatedVariant,
+    MutatorOutput,
+    build_mutator_agent,
+)
 from llmsec.attacker.roles.strategist import StrategistOutput, build_strategist_agent
 from llmsec.attacker.runner import run_attacker_campaign
 from llmsec.attacker.state import BudgetLedger
@@ -307,8 +311,8 @@ def test_truncation_disclosure_present_and_names_cap_and_spend_when_truncated():
 
 def test_truncation_disclosure_wording_matches_render_cost_notice_overshoot_sentence():
     from llmsec.attacker.budget import (
-        CostEstimate,
         _OVERSHOOT_BOUND_SENTENCE,
+        CostEstimate,
         render_cost_notice,
     )
 

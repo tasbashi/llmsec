@@ -249,7 +249,7 @@ def _resolve_stop_when(module: BaseModule | None, case: TestCase) -> Callable[[s
     def _stop_when(turn_reply: str) -> bool:
         try:
             return bool(predicate(case, turn_reply))
-        except Exception:  # noqa: BLE001 -- a misbehaving predicate must never abort dispatch
+        except Exception:  # a misbehaving predicate must never abort dispatch
             return False
 
     return _stop_when
@@ -937,7 +937,7 @@ def build_campaign_graph(
                         response = await adapter.send_conversation(test_case, stop_when=stop_when)
                     else:
                         response = await adapter.send(test_case)
-                except Exception as exc:  # noqa: BLE001 -- T-01-18 containment
+                except Exception as exc:  # T-01-18 containment
                     logger.warning(
                         "Deep-mode variant %r dispatch failed, degrading to UNCERTAIN: %s",
                         generated_case_id,
@@ -972,7 +972,7 @@ def build_campaign_graph(
                     # the ONLY scoring instrument -- no role in this file
                     # assigns a verdict.
                     eval_result = await module.evaluate(test_case, response)
-                except Exception as exc:  # noqa: BLE001 -- T-01-18 containment
+                except Exception as exc:  # T-01-18 containment
                     logger.warning(
                         "Deep-mode variant %r evaluation failed, degrading to UNCERTAIN: %s",
                         generated_case_id,

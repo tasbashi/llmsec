@@ -11,7 +11,6 @@ Plan 02-04: `send_conversation()` capability-flagged multi-turn transport
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from types import SimpleNamespace
 

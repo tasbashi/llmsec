@@ -25,9 +25,13 @@ from __future__ import annotations
 import logging
 
 import instructor.exceptions
-import pytest
 
-from llmsec.detection.judge import MAX_RESPONSE_CHARS, JudgeVerdict, judge_output_handling, judge_response
+from llmsec.detection.judge import (
+    MAX_RESPONSE_CHARS,
+    JudgeVerdict,
+    judge_output_handling,
+    judge_response,
+)
 from llmsec.models import Verdict
 
 # Reused, not redefined — `tests/detection/conftest.py`'s `mock_judge_client`

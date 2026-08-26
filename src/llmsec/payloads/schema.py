@@ -405,6 +405,6 @@ class PayloadEntry(BaseModel):
                 "exactly one of `prompt` or `turns` must be set "
                 f"(prompt={self.prompt!r}, turns={self.turns!r})"
             )
-        if has_turns and len(self.turns) == 0:
+        if self.turns is not None and len(self.turns) == 0:
             raise ValueError("`turns` must have at least one element when set")
         return self

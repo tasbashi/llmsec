@@ -23,7 +23,16 @@ from llmsec.attacker.runner import CampaignResult
 from llmsec.attacker.state import VariantRecord
 from llmsec.cli import app
 from llmsec.config import ScanConfig, TargetConfig
-from llmsec.models import EvalResult, ScanContext, ScanReport, TargetResponse, TestCase, Verdict
+from llmsec.models import (
+    EvalResult,
+    ScanContext,
+    ScanReport,
+    TargetResponse,
+    TestCase,
+    Verdict,
+)
+
+from .conftest import strip_ansi
 
 runner = CliRunner()
 
@@ -65,9 +74,10 @@ def _fake_report() -> ScanReport:
 def test_scan_help_lists_deep_flags():
     result = runner.invoke(app, ["scan", "--help"])
     assert result.exit_code == 0
-    assert "--deep" in result.output
-    assert "--quick" in result.output
-    assert "--deep-profile" in result.output
+    output = strip_ansi(result.output)
+    assert "--deep" in output
+    assert "--quick" in output
+    assert "--deep-profile" in output
 
 
 def test_scan_no_flags_attacker_absent_from_config(tmp_path, monkeypatch):

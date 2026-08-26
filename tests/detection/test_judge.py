@@ -12,7 +12,6 @@ import hashlib
 import logging
 
 import instructor.exceptions
-import pytest
 
 from llmsec.detection.judge import (
     MAX_RESPONSE_CHARS,

@@ -14,7 +14,11 @@ from llmsec.api import _DEGRADED_MULTI_TURN_LIMITATION_NOTE, _scan_limitations
 from llmsec.attacker.config import AttackerConfig, resolve_settings
 from llmsec.attacker.graph import build_campaign_graph
 from llmsec.attacker.roles.crescendo import CrescendoOutput, build_crescendo_agent
-from llmsec.attacker.roles.mutator import MutatedVariant, MutatorOutput, build_mutator_agent
+from llmsec.attacker.roles.mutator import (
+    MutatedVariant,
+    MutatorOutput,
+    build_mutator_agent,
+)
 from llmsec.attacker.roles.strategist import StrategistOutput, build_strategist_agent
 from llmsec.attacker.state import QueuedCase, new_campaign_state
 from llmsec.models import EvalResult, TargetResponse, TestCase, Verdict

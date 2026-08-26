@@ -188,7 +188,7 @@ def target_call_cost(
             model=model, prompt_tokens=tokens_used, completion_tokens=0
         )
         return float(prompt_cost) + float(completion_cost)
-    except Exception:  # noqa: BLE001 -- litellm raises on any unknown/unpriced model
+    except Exception:  # litellm raises on any unknown/unpriced model
         if ledger is not None:
             ledger["unpriced_calls"] = ledger.get("unpriced_calls", 0) + 1
         return 0.0

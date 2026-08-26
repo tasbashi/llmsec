@@ -30,7 +30,14 @@ from llmsec.auth_gate import confirm_authorization
 from llmsec.config import ScanConfig
 from llmsec.detection.canary import CANARY_LIMITATION_NOTE
 from llmsec.detection.pii_ner import ner_available
-from llmsec.models import DeepModeSummary, EvalResult, Finding, ScanContext, ScanReport, Verdict
+from llmsec.models import (
+    DeepModeSummary,
+    EvalResult,
+    Finding,
+    ScanContext,
+    ScanReport,
+    Verdict,
+)
 from llmsec.modules.supply_chain import (
     AUDIT_CASE_ID_EXTRA_MISSING,
     AUDIT_CASE_ID_MANIFEST_MISSING,
@@ -38,6 +45,7 @@ from llmsec.modules.supply_chain import (
     SLOPSQUATTING_CASE_ID_PREFIX,
     index_snapshot_limitation_note,
 )
+
 # Phase 7 (07-03): imported (never re-typed) so `_CONSUMPTION_FLOOD_CAP_NOTE`
 # below can never drift from the module's own cap constant. `api.py`
 # already imports from `llmsec.modules.supply_chain` at top level with no

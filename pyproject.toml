@@ -62,6 +62,7 @@ dev = [
     "respx",
     "mypy",
     "ruff",
+    "types-PyYAML",
 ]
 # D-27: optional NER detection layer (Presidio + spaCy) for the
 # pii_exfiltration module's unstructured-PII tier (names/addresses/orgs).
@@ -190,6 +191,41 @@ dashboard = [
     "fastapi>=0.138,<1",
     "uvicorn>=0.34,<1",
 ]
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "C4", "SIM", "RUF"]
+ignore = [
+    # Ambiguous-unicode checks false-positive throughout: the canary/PII
+    # detection layer deliberately embeds homoglyphs and adversarial unicode
+    # as test fixtures and detection targets, not typos.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+]
+# BLE001 (flake8-blind-except) is deliberately not selected: the "failure
+# containment" invariant (T-01-18, see CLAUDE.md) requires broad
+# `except Exception` catch-log-degrade-to-UNCERTAIN throughout the
+# orchestrator, adapters, and modules -- a per-case failure must never
+# propagate and cancel a sibling asyncio.gather task. Narrowing these to
+# specific exception types would violate that invariant, not fix a bug.
+
+[tool.ruff.lint.per-file-ignores]
+# `mock_judge_client` is imported solely to register it as a pytest fixture
+# (see the file's own docstring/comment) -- every test parameter of the same
+# name is a real fixture use, not a redefinition.
+"tests/evaluators/test_judge_degradation.py" = ["F811"]
+# B008 flags `Depends(...)`/`Query(...)` in argument defaults, which is the
+# idiomatic FastAPI pattern recommended by FastAPI's own docs, not a bug.
+"src/llmsec/dashboard/*.py" = ["B008"]
+# D-73: these two target-path modules are byte-for-byte pinned since Phase 2
+# and verified by a content-digest test -- `ruff --fix`'s import-sort must
+# never touch them, even though their (deliberately original, unsorted)
+# import order would otherwise trip I001.
+"src/llmsec/orchestrator.py" = ["I001"]
+"src/llmsec/adapters/llm_api.py" = ["I001"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

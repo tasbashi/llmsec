@@ -23,11 +23,15 @@ import typer
 
 from llmsec.adapters.base import TargetAdapter
 from llmsec.attacker import require_deep_extra
-from llmsec.attacker.config import DEFAULT_ENABLED_TECHNIQUES, resolve_settings, resolve_role_model
+from llmsec.attacker.config import (
+    DEFAULT_ENABLED_TECHNIQUES,
+    resolve_role_model,
+    resolve_settings,
+)
 from llmsec.attacker.state import (
+    QUEUE_ELIGIBLE_VERDICTS,
     BudgetLedger,
     CampaignState,
-    QUEUE_ELIGIBLE_VERDICTS,
     QueuedCase,
     VariantRecord,
     new_campaign_state,
@@ -271,16 +275,16 @@ async def run_attacker_campaign(
     # deepagents and must never be imported before the gate above clears.
     from langgraph.types import Command
 
+    import llmsec.attacker.roles.analyst
+    import llmsec.attacker.roles.crescendo
+    import llmsec.attacker.roles.mutator
+    import llmsec.attacker.roles.recon
+    import llmsec.attacker.roles.strategist  # noqa: F401 -- registers "strategist"
     from llmsec.attacker.audit import AttackerAuditHandler, AttackerAuditWriter
     from llmsec.attacker.budget import truncation_disclosure
     from llmsec.attacker.checkpoint import build_checkpointer, config_fingerprint
     from llmsec.attacker.graph import build_campaign_graph
     from llmsec.attacker.roles import get_role
-    import llmsec.attacker.roles.analyst  # noqa: F401 -- registers "analyst"
-    import llmsec.attacker.roles.crescendo  # noqa: F401 -- registers "crescendo"
-    import llmsec.attacker.roles.mutator  # noqa: F401 -- registers "mutator"
-    import llmsec.attacker.roles.recon  # noqa: F401 -- registers "recon"
-    import llmsec.attacker.roles.strategist  # noqa: F401 -- registers "strategist"
 
     attacker_cfg = config.attacker
     if attacker_cfg is None:  # defensive -- api.py only calls this when set
@@ -509,15 +513,19 @@ async def resume_attacker_campaign(
     # and must never be imported before the gate above clears.
     from langgraph.types import Command
 
+    import llmsec.attacker.roles.analyst
+    import llmsec.attacker.roles.crescendo
+    import llmsec.attacker.roles.mutator
+    import llmsec.attacker.roles.strategist  # noqa: F401 -- registers "strategist"
     from llmsec.attacker.audit import AttackerAuditHandler, AttackerAuditWriter
     from llmsec.attacker.budget import truncation_disclosure
-    from llmsec.attacker.checkpoint import build_checkpointer, config_fingerprint, idempotency_key
+    from llmsec.attacker.checkpoint import (
+        build_checkpointer,
+        config_fingerprint,
+        idempotency_key,
+    )
     from llmsec.attacker.graph import build_campaign_graph
     from llmsec.attacker.roles import get_role
-    import llmsec.attacker.roles.analyst  # noqa: F401 -- registers "analyst"
-    import llmsec.attacker.roles.crescendo  # noqa: F401 -- registers "crescendo"
-    import llmsec.attacker.roles.mutator  # noqa: F401 -- registers "mutator"
-    import llmsec.attacker.roles.strategist  # noqa: F401 -- registers "strategist"
 
     # Deliberately NOT `import llmsec.attacker.roles.recon` here: `recon`
     # is reachable ONLY via the graph's `START` edge (`graph.py`'s module

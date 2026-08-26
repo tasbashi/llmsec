@@ -14,9 +14,9 @@ import pytest
 
 pytest.importorskip("fastapi", reason='dashboard suite requires pip install -e ".[dashboard,dev]"')
 
-from starlette.staticfiles import StaticFiles  # noqa: E402
+from starlette.staticfiles import StaticFiles
 
-from tests.dashboard.conftest import TEST_DASHBOARD_TOKEN  # noqa: E402
+from tests.dashboard.conftest import TEST_DASHBOARD_TOKEN
 
 
 def _api_routes(app):
@@ -232,8 +232,9 @@ class TestWholeSurfaceGating:
 
 class TestShellReachabilityAndFallbackIsolation:
     def test_shell_is_reachable_with_no_token(self, tmp_path: Path) -> None:
-        from llmsec.dashboard.app import create_app
         from fastapi.testclient import TestClient
+
+        from llmsec.dashboard.app import create_app
 
         static_dir = tmp_path / "static"
         static_dir.mkdir()
@@ -249,8 +250,9 @@ class TestShellReachabilityAndFallbackIsolation:
     def test_unmatched_api_shaped_path_returns_json_never_the_shell(
         self, tmp_path: Path
     ) -> None:
-        from llmsec.dashboard.app import create_app
         from fastapi.testclient import TestClient
+
+        from llmsec.dashboard.app import create_app
 
         static_dir = tmp_path / "static"
         static_dir.mkdir()

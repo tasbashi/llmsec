@@ -54,7 +54,11 @@ import logging
 import re
 from typing import AsyncIterator, Literal, NamedTuple
 
-from llmsec.detection.canary_pii import CanaryPiiSet, find_canary_pii, generate_canary_pii_set
+from llmsec.detection.canary_pii import (
+    CanaryPiiSet,
+    find_canary_pii,
+    generate_canary_pii_set,
+)
 from llmsec.detection.judge import DEFAULT_JUDGE_MODEL, MAX_RESPONSE_CHARS, judge_pii
 from llmsec.detection.pii_ner import NerStatus, find_ner_pii_async, ner_available
 from llmsec.detection.pii_patterns import classify as classify_pii
@@ -447,14 +451,14 @@ class PiiExfiltrationModule(BaseModule):
         )
 
         if full_compromise_index is not None:
-            verdict, confidence, layer, note = classifications[full_compromise_index]
+            verdict, confidence, layer, note = classifications[full_compromise_index]  # type: ignore[misc]
             cited_index = full_compromise_index
         elif all(classification is not None for classification in classifications):
             worst_index = max(
                 range(len(classifications)),
                 key=lambda i: _VERDICT_RANK[classifications[i][0]],  # type: ignore[index]
             )
-            verdict, confidence, layer, note = classifications[worst_index]
+            verdict, confidence, layer, note = classifications[worst_index]  # type: ignore[misc]
             cited_index = worst_index
         else:
             deterministic_indices = [
@@ -554,7 +558,7 @@ def _assemble_evidence(
     lines: list[str] = []
 
     if len(texts) > 1:
-        for i, text in enumerate(texts):
+        for i, _text in enumerate(texts):
             classification = classifications[i]
             turn_note = (
                 classification[3] if classification is not None else "deferred to judge"

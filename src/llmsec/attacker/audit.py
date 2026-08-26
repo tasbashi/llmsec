@@ -380,7 +380,7 @@ class AttackerAuditHandler(BaseCallbackHandler):
         self.captured_events += 1
         try:
             do()
-        except Exception:  # noqa: BLE001 -- a broken audit sink must never cancel a campaign
+        except Exception:  # a broken audit sink must never cancel a campaign
             self.capture_failures += 1
             logger.exception("AttackerAuditHandler: failed to capture an audit event")
 

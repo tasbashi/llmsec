@@ -13,8 +13,8 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from llmsec.dashboard import (
-    DASHBOARD_EXTRA_MODULES,
     DASHBOARD_EXTRA_INSTALL_HINT,
+    DASHBOARD_EXTRA_MODULES,
     DashboardExtraNotInstalled,
     dashboard_extra_available,
     require_dashboard_extra,

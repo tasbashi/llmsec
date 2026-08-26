@@ -24,7 +24,12 @@ import pytest
 
 from llmsec.detection import pii_ner
 from llmsec.detection.judge import MAX_RESPONSE_CHARS
-from llmsec.detection.pii_ner import NerStatus, find_ner_pii, find_ner_pii_async, ner_available
+from llmsec.detection.pii_ner import (
+    NerStatus,
+    find_ner_pii,
+    find_ner_pii_async,
+    ner_available,
+)
 
 
 class _FakeRecognizerResult:

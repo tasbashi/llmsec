@@ -598,12 +598,13 @@ def find_output_match_spans(text: str, vulnerability_class: str) -> list[tuple[i
                 if (
                     vulnerability_class == "ssrf_cloud_metadata"
                     and hostname in _CLOUD_METADATA_HOSTS
-                ):
-                    spans.add(url_match.span())
-                elif vulnerability_class == "ssrf_internal" and (
-                    parsed.scheme.lower() == "file"
-                    or hostname in _INTERNAL_LITERAL_HOSTS
-                    or hostname.endswith(_INTERNAL_HOST_SUFFIXES)
+                ) or (
+                    vulnerability_class == "ssrf_internal"
+                    and (
+                        parsed.scheme.lower() == "file"
+                        or hostname in _INTERNAL_LITERAL_HOSTS
+                        or hostname.endswith(_INTERNAL_HOST_SUFFIXES)
+                    )
                 ):
                     spans.add(url_match.span())
 

@@ -119,7 +119,7 @@ def test_recon_prompt_is_distinct_from_every_other_role_prompt() -> None:
     distinct from all three other role prompts."""
     other_prompts = (STRATEGIST_SYSTEM_PROMPT, MUTATOR_SYSTEM_PROMPT, ANALYST_SYSTEM_PROMPT)
     assert all(RECON_SYSTEM_PROMPT is not other for other in other_prompts)
-    assert all(RECON_SYSTEM_PROMPT != other for other in other_prompts)
+    assert all(other != RECON_SYSTEM_PROMPT for other in other_prompts)
     recon_digest = hashlib.sha256(RECON_SYSTEM_PROMPT.encode("utf-8")).hexdigest()
     other_digests = {hashlib.sha256(other.encode("utf-8")).hexdigest() for other in other_prompts}
     assert recon_digest not in other_digests
@@ -135,7 +135,7 @@ def test_crescendo_prompt_is_distinct_from_every_other_role_prompt() -> None:
         RECON_SYSTEM_PROMPT,
     )
     assert all(CRESCENDO_SYSTEM_PROMPT is not other for other in other_prompts)
-    assert all(CRESCENDO_SYSTEM_PROMPT != other for other in other_prompts)
+    assert all(other != CRESCENDO_SYSTEM_PROMPT for other in other_prompts)
     crescendo_digest = hashlib.sha256(CRESCENDO_SYSTEM_PROMPT.encode("utf-8")).hexdigest()
     other_digests = {hashlib.sha256(other.encode("utf-8")).hexdigest() for other in other_prompts}
     assert crescendo_digest not in other_digests

@@ -121,13 +121,14 @@ async def invoke_role_with_retry(
             )
             if on_attempt is not None:
                 on_attempt(attempt, last_violation, last_raw)
-            current_messages = current_messages + [
+            current_messages = [
+                *current_messages,
                 (
                     "user",
                     "Your previous structured-output tool call was rejected: "
                     f"{last_violation}\nCorrect exactly this issue and respond "
                     "again by calling the same tool once with valid arguments.",
-                )
+                ),
             ]
             continue
 
@@ -147,13 +148,14 @@ async def invoke_role_with_retry(
         )
         if on_attempt is not None:
             on_attempt(attempt, last_violation, last_raw)
-        current_messages = current_messages + [
+        current_messages = [
+            *current_messages,
             (
                 "user",
                 "Your previous response did not call your structured-output "
                 "tool at all. Respond again by calling that tool once with "
                 "valid arguments.",
-            )
+            ),
         ]
 
     raise StructuredOutputFailure(

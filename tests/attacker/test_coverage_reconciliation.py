@@ -28,10 +28,19 @@ from llmsec.attacker.config import AttackerConfig, resolve_settings
 from llmsec.attacker.graph import build_campaign_graph
 from llmsec.attacker.roles.analyst import ObservedDefence, build_analyst_agent
 from llmsec.attacker.roles.crescendo import CrescendoOutput, build_crescendo_agent
-from llmsec.attacker.roles.mutator import MutatedVariant, MutatorOutput, build_mutator_agent
+from llmsec.attacker.roles.mutator import (
+    MutatedVariant,
+    MutatorOutput,
+    build_mutator_agent,
+)
 from llmsec.attacker.roles.strategist import StrategistOutput, build_strategist_agent
 from llmsec.attacker.runner import CampaignResult
-from llmsec.attacker.state import QUEUE_ELIGIBLE_VERDICTS, QueuedCase, VariantRecord, new_campaign_state
+from llmsec.attacker.state import (
+    QUEUE_ELIGIBLE_VERDICTS,
+    QueuedCase,
+    VariantRecord,
+    new_campaign_state,
+)
 from llmsec.attacker.summary import compute_deep_summary
 from llmsec.models import EvalResult, Finding, TestCase, Verdict
 from llmsec.scoring.engine import Severity, score

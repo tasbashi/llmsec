@@ -5,7 +5,6 @@ PII/credential-leak detection path (03-01 tracer + 03-06 full dispatch).
 
 from __future__ import annotations
 
-from typing import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -17,7 +16,7 @@ from llmsec.detection import pii_ner
 from llmsec.detection.canary_pii import generate_canary_pii_set
 from llmsec.detection.judge import JudgeVerdict
 from llmsec.detection.pii_patterns import PiiMatch, classify, luhn_check
-from llmsec.models import EvalResult, ScanContext, TargetResponse, TestCase, Verdict
+from llmsec.models import ScanContext, TargetResponse, TestCase, Verdict
 from llmsec.modules.pii_exfiltration import PiiExfiltrationModule
 from llmsec.payloads import load_corpus
 from llmsec.payloads.schema import PiiAttackVector

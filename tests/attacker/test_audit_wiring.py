@@ -19,7 +19,11 @@ from llmsec.attacker.audit import audit_path_for
 from llmsec.attacker.config import AttackerConfig, resolve_settings
 from llmsec.attacker.graph import build_campaign_graph
 from llmsec.attacker.roles import ROLE_REGISTRY
-from llmsec.attacker.roles.mutator import MutatedVariant, MutatorOutput, build_mutator_agent
+from llmsec.attacker.roles.mutator import (
+    MutatedVariant,
+    MutatorOutput,
+    build_mutator_agent,
+)
 from llmsec.attacker.roles.strategist import StrategistOutput, build_strategist_agent
 from llmsec.attacker.runner import run_attacker_campaign
 from llmsec.attacker.state import QueuedCase, new_campaign_state
@@ -188,7 +192,7 @@ async def test_audit_file_exists_and_captures_role_and_target_lines(
     patch_analyst_and_recon_roles,
     tmp_path,
 ):
-    result, adapter = await _run_two_round_campaign(
+    result, _adapter = await _run_two_round_campaign(
         monkeypatch, fake_target_adapter, mock_target_response, scripted_chat_model, patch_analyst_and_recon_roles, tmp_path, "scan-audit-1"
     )
 
@@ -286,7 +290,7 @@ async def test_lines_carry_correct_round_module_id_case_id(
     patch_analyst_and_recon_roles,
     tmp_path,
 ):
-    result, adapter = await _run_two_round_campaign(
+    _result, _adapter = await _run_two_round_campaign(
         monkeypatch, fake_target_adapter, mock_target_response, scripted_chat_model, patch_analyst_and_recon_roles, tmp_path, "scan-audit-3"
     )
     lines = _read_audit_lines(tmp_path, "scan-audit-3")

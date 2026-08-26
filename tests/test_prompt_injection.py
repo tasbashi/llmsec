@@ -11,9 +11,9 @@ Covers 02-05-PLAN.md:
 from __future__ import annotations
 
 import inspect
+from unittest.mock import AsyncMock
 
 import pytest
-from unittest.mock import AsyncMock
 
 from llmsec.detection import judge as judge_module
 from llmsec.detection.canary import CANARY_RULE_INSTRUCTION, CANARY_TOKEN

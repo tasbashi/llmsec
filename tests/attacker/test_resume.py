@@ -24,7 +24,11 @@ from llmsec.attacker.checkpoint import idempotency_key
 from llmsec.attacker.config import AttackerConfig, resolve_settings
 from llmsec.attacker.graph import build_campaign_graph
 from llmsec.attacker.roles import ROLE_REGISTRY
-from llmsec.attacker.roles.mutator import MutatedVariant, MutatorOutput, build_mutator_agent
+from llmsec.attacker.roles.mutator import (
+    MutatedVariant,
+    MutatorOutput,
+    build_mutator_agent,
+)
 from llmsec.attacker.roles.strategist import StrategistOutput, build_strategist_agent
 from llmsec.attacker.runner import (
     ConfigFingerprintMismatchError,
@@ -37,6 +41,8 @@ from llmsec.cli import app
 from llmsec.config import ScanConfig, TargetConfig
 from llmsec.models import EvalResult, ScanContext, TargetResponse, TestCase, Verdict
 from llmsec.plugins.base import BaseModule
+
+from .conftest import strip_ansi
 
 runner = CliRunner()
 
@@ -68,13 +74,13 @@ class _StubModule(BaseModule):
 
 
 def _make_config(*, output_dir, checkpoint_dir, **attacker_overrides) -> ScanConfig:
-    defaults: dict[str, object] = dict(
-        enabled=True,
-        profile="light",
-        max_rounds=2,
-        variants_per_round=1,
-        checkpoint_dir=str(checkpoint_dir) if checkpoint_dir is not None else None,
-    )
+    defaults: dict[str, object] = {
+        "enabled": True,
+        "profile": "light",
+        "max_rounds": 2,
+        "variants_per_round": 1,
+        "checkpoint_dir": str(checkpoint_dir) if checkpoint_dir is not None else None,
+    }
     defaults.update(attacker_overrides)
     return ScanConfig(
         target=TargetConfig(type="raw_llm", model="openai/gpt-4o-mini", api_key_env="TEST_API_KEY"),
@@ -175,8 +181,9 @@ async def _seed_checkpoint_via_mid_campaign_exception(
 def test_scan_help_lists_resume_flags():
     result = runner.invoke(app, ["scan", "--help"])
     assert result.exit_code == 0
-    assert "--resume" in result.output
-    assert "--budget-top-up-usd" in result.output
+    output = strip_ansi(result.output)
+    assert "--resume" in output
+    assert "--budget-top-up-usd" in output
 
 
 def test_resume_without_deep_exits_nonzero(tmp_path):
@@ -368,7 +375,7 @@ async def test_resume_budget_top_up_prints_prior_spend_before_further_spend(
     )
 
     assert len(callback_calls) == 1
-    prior, original_cap, effective_cap = callback_calls[0]
+    _prior, original_cap, effective_cap = callback_calls[0]
     assert effective_cap == 50.0
     assert effective_cap != original_cap
     assert result.final_state.get("budget_ledger", {}).get("cap_usd") == 50.0

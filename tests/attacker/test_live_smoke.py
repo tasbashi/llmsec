@@ -50,23 +50,23 @@ from typing import Any
 import pytest
 
 import llmsec
-from llmsec.api import _build_adapter
-from llmsec.attacker.budget import CORE_ROLES_PER_ROUND, estimate_campaign_cost
-from llmsec.attacker.config import resolve_settings
-from llmsec.attacker.roles import ROLE_REGISTRY
-from llmsec.attacker.roles._structured_retry import invoke_role_with_retry
-from llmsec.attacker.state import QueuedCase, new_campaign_state
 
 # Registering every role -- module-scope, credential-free (mirrors
 # `test_structured_output_gates.py`'s own established pattern) -- so
 # `ROLE_REGISTRY` is fully populated by collection time, with zero network
 # access and zero credential requirement. `--collect-only` must succeed
 # with these imports alone.
-import llmsec.attacker.roles.analyst  # noqa: F401 -- registers "analyst"
-import llmsec.attacker.roles.crescendo  # noqa: F401 -- registers "crescendo"
-import llmsec.attacker.roles.mutator  # noqa: F401 -- registers "mutator"
-import llmsec.attacker.roles.recon  # noqa: F401 -- registers "recon"
-import llmsec.attacker.roles.strategist  # noqa: F401 -- registers "strategist"
+import llmsec.attacker.roles.analyst
+import llmsec.attacker.roles.crescendo
+import llmsec.attacker.roles.mutator
+import llmsec.attacker.roles.recon
+import llmsec.attacker.roles.strategist
+from llmsec.api import _build_adapter
+from llmsec.attacker.budget import CORE_ROLES_PER_ROUND, estimate_campaign_cost
+from llmsec.attacker.config import resolve_settings
+from llmsec.attacker.roles import ROLE_REGISTRY
+from llmsec.attacker.roles._structured_retry import invoke_role_with_retry
+from llmsec.attacker.state import QueuedCase, new_campaign_state
 from llmsec.config import ScanConfig, load_config
 from llmsec.models import Verdict
 

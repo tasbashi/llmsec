@@ -14,7 +14,14 @@ from pathlib import Path
 
 import pytest
 
-from llmsec.models import DeepModeSummary, EvalResult, Finding, RoleActivity, ScanReport, Verdict
+from llmsec.models import (
+    DeepModeSummary,
+    EvalResult,
+    Finding,
+    RoleActivity,
+    ScanReport,
+    Verdict,
+)
 from llmsec.reporting.json_reporter import JsonReporter, load_report
 from llmsec.reporting.markdown_reporter import MarkdownReporter
 

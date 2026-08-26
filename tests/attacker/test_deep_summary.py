@@ -31,7 +31,15 @@ from llmsec.attacker.state import (
 )
 from llmsec.attacker.summary import DeepSummaryReconciliationError, compute_deep_summary
 from llmsec.config import ScanConfig, TargetConfig
-from llmsec.models import EvalResult, Finding, ScanContext, ScanReport, TargetResponse, TestCase, Verdict
+from llmsec.models import (
+    EvalResult,
+    Finding,
+    ScanContext,
+    ScanReport,
+    TargetResponse,
+    TestCase,
+    Verdict,
+)
 
 # `pyproject.toml` sets `asyncio_mode = "auto"` — no explicit marker needed;
 # `async def` tests below are auto-detected, `def` tests run synchronously.

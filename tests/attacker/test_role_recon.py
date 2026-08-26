@@ -10,7 +10,11 @@ from llmsec.attacker.config import AttackerConfig, resolve_settings
 from llmsec.attacker.graph import build_campaign_graph
 from llmsec.attacker.roles import ROLE_REGISTRY
 from llmsec.attacker.roles._structured_retry import MAX_STRUCTURED_OUTPUT_RETRIES
-from llmsec.attacker.roles.mutator import MutatedVariant, MutatorOutput, build_mutator_agent
+from llmsec.attacker.roles.mutator import (
+    MutatedVariant,
+    MutatorOutput,
+    build_mutator_agent,
+)
 from llmsec.attacker.roles.recon import (
     RECON_PROBE_COUNT,
     RECON_PROBE_SET,

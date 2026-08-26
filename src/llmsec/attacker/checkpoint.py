@@ -68,17 +68,17 @@ from pydantic import BaseModel
 # this env var to something else before this module was ever imported.
 os.environ.setdefault("LANGGRAPH_STRICT_MSGPACK", "true")
 
-from langgraph.checkpoint.base import BaseCheckpointSaver  # noqa: E402
-from langgraph.checkpoint.memory import MemorySaver  # noqa: E402
-from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer  # noqa: E402
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
-from llmsec.attacker.audit import redact_audit_text  # noqa: E402
-from llmsec.attacker.config import (  # noqa: E402
+from llmsec.attacker.audit import redact_audit_text
+from llmsec.attacker.config import (
     DEFAULT_ENABLED_TECHNIQUES,
     ResolvedAttackerSettings,
 )
-from llmsec.config import ScanConfig  # noqa: E402
-from llmsec.models import EvalResult, TargetResponse, Verdict  # noqa: E402
+from llmsec.config import ScanConfig
+from llmsec.models import EvalResult, TargetResponse, Verdict
 
 logger = logging.getLogger(__name__)
 

@@ -208,7 +208,7 @@ async def _run_judge(
     try:
         return await judge_client.chat.completions.create(
             model=judge_model,  # operator-swappable LiteLLM model string; see AI-SPEC §4
-            response_model=response_model,
+            response_model=response_model,  # type: ignore[arg-type]  # instructor's overloads need a literal type, not a generic type[BaseModel] param
             max_retries=2,  # re-ask on Pydantic validation failure (AI-SPEC §4b.1)
             temperature=0.0,  # deterministic classification (PITFALLS P4-A)
             max_tokens=300,  # bounded — never leave unbounded in production

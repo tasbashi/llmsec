@@ -16,8 +16,12 @@ from __future__ import annotations
 import pytest
 
 from llmsec.attacker.config import DEFAULT_ENABLED_TECHNIQUES
-from llmsec.attacker.graph import _CLOSED_TECHNIQUE_VOCABULARY, TechniqueNotAllowed, validate_technique
-from llmsec.attacker.roles.mutator import MutatedVariant, _VALID_TECHNIQUE_FAMILIES
+from llmsec.attacker.graph import (
+    _CLOSED_TECHNIQUE_VOCABULARY,
+    TechniqueNotAllowed,
+    validate_technique,
+)
+from llmsec.attacker.roles.mutator import _VALID_TECHNIQUE_FAMILIES, MutatedVariant
 from llmsec.payloads.schema import (
     MisinformationTechniqueVector,
     OutputVulnerabilityClass,

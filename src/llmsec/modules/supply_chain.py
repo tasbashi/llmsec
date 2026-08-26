@@ -355,7 +355,7 @@ async def _query_osv_batch(
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
         for chunk_start in range(0, len(packages), _OSV_BATCH_CHUNK_SIZE):
             chunk = packages[chunk_start : chunk_start + _OSV_BATCH_CHUNK_SIZE]
-            page_tokens: dict[int, str | None] = {i: None for i in range(len(chunk))}
+            page_tokens: dict[int, str | None] = dict.fromkeys(range(len(chunk)))
             pending_indices = list(range(len(chunk)))
             while pending_indices:
                 queries = []

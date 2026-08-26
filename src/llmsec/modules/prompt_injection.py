@@ -48,7 +48,11 @@ from llmsec.detection.canary import (
     CANARY_TOKEN,
     find_canary,
 )
-from llmsec.detection.judge import DEFAULT_JUDGE_MODEL, MAX_RESPONSE_CHARS, judge_injection
+from llmsec.detection.judge import (
+    DEFAULT_JUDGE_MODEL,
+    MAX_RESPONSE_CHARS,
+    judge_injection,
+)
 from llmsec.detection.regex_rules import (
     CONTRASTIVE_HEDGE_PATTERNS,
     LEAK_INDICATOR_PATTERNS,
@@ -338,14 +342,14 @@ class PromptInjectionModule(BaseModule):
         )
 
         if full_compromise_index is not None:
-            verdict, confidence, layer, note = classifications[full_compromise_index]
+            verdict, confidence, layer, note = classifications[full_compromise_index]  # type: ignore[misc]
             cited_index = full_compromise_index
         elif all(classification is not None for classification in classifications):
             worst_index = max(
                 range(len(classifications)),
                 key=lambda i: _VERDICT_RANK[classifications[i][0]],  # type: ignore[index]
             )
-            verdict, confidence, layer, note = classifications[worst_index]
+            verdict, confidence, layer, note = classifications[worst_index]  # type: ignore[misc]
             cited_index = worst_index
         else:
             deterministic_indices = [
@@ -467,7 +471,7 @@ def _assemble_evidence(
         # ascending order, then cite whichever turn the reported verdict is
         # based on (earliest turn achieving the worst verdict, or the judge
         # when no single turn is cited).
-        for i, text in enumerate(texts):
+        for i, _text in enumerate(texts):
             classification = classifications[i]
             turn_note = classification[3] if classification is not None else "deferred to judge"
             lines.append(f"Turn {i + 1}: {turn_note}")

@@ -14,7 +14,11 @@ import pytest
 from llmsec.attacker.config import DEFAULT_ENABLED_TECHNIQUES
 from llmsec.attacker.graph import TechniqueNotAllowed, validate_technique
 from llmsec.attacker.roles.mutator import MutatedVariant
-from llmsec.payloads.schema import ConsumptionTechniqueVector, OutputVulnerabilityClass, SupplyChainTechniqueVector
+from llmsec.payloads.schema import (
+    ConsumptionTechniqueVector,
+    OutputVulnerabilityClass,
+    SupplyChainTechniqueVector,
+)
 
 
 class TestConsumptionTechniqueVectorAllowlist:

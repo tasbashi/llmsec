@@ -26,7 +26,10 @@ from __future__ import annotations
 
 import pytest
 
-from llmsec.detection.output_patterns import classify_output_handling, find_output_match_spans
+from llmsec.detection.output_patterns import (
+    classify_output_handling,
+    find_output_match_spans,
+)
 from llmsec.models import Verdict
 
 
@@ -53,7 +56,7 @@ def test_entity_escaped_script_tag_in_html_context_yields_blocked():
     result = classify_output_handling(text, "html", "xss_reflected")
 
     assert result is not None
-    verdict, confidence, layer, note = result
+    verdict, _confidence, layer, _note = result
     assert verdict == Verdict.BLOCKED
     assert layer == "regex"
 
@@ -73,7 +76,7 @@ def test_empty_text_yields_uncertain_never_raises():
     result = classify_output_handling("", "html", "xss_reflected")
 
     assert result is not None
-    verdict, confidence, layer, note = result
+    verdict, confidence, layer, _note = result
     assert verdict == Verdict.UNCERTAIN
     assert confidence == 0.0
     assert layer == "regex"
@@ -352,7 +355,7 @@ def test_output_025_json_breakout_resolves_via_header_injection_class():
     result = classify_output_handling(text, "json", "header_injection")
 
     assert result is not None, "CR-01 regression: JSON breakout no longer resolves via regex tier"
-    verdict, confidence, layer, note = result
+    verdict, confidence, layer, _note = result
     assert verdict == Verdict.FULL_COMPROMISE
     assert confidence == 1.0
     assert layer == "regex"

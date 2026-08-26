@@ -24,12 +24,16 @@ import pathlib
 import pytest
 
 import llmsec
-import llmsec.attacker.graph  # noqa: F401 -- transitively registers all five roles
+import llmsec.attacker.graph
 from llmsec.attacker.audit import AttackerAuditHandler, AttackerAuditWriter
 from llmsec.attacker.config import AttackerConfig, resolve_settings
 from llmsec.attacker.graph import build_campaign_graph
 from llmsec.attacker.roles import ROLE_REGISTRY
-from llmsec.attacker.roles.mutator import MutatedVariant, MutatorOutput, build_mutator_agent
+from llmsec.attacker.roles.mutator import (
+    MutatedVariant,
+    MutatorOutput,
+    build_mutator_agent,
+)
 from llmsec.attacker.roles.strategist import StrategistOutput, build_strategist_agent
 from llmsec.attacker.state import QueuedCase, new_campaign_state
 from llmsec.models import EvalResult, TargetResponse, TestCase, Verdict
@@ -37,6 +41,8 @@ from llmsec.plugins.base import BaseModule
 
 from .conftest import (
     HARMFUL_CONTENT_MARKER as _HARMFUL_CONTENT_MARKER,
+)
+from .conftest import (
     SCOPE_REDIRECT_TARGET as _SCOPE_REDIRECT_TARGET,
 )
 

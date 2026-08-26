@@ -160,7 +160,7 @@ def scan_cmd(
         cfg = load_config(config, cli_overrides)
     except ValidationError as exc:
         typer.echo(f"Invalid config at {config}: {exc}", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     if resume is not None:
         # 05-06 Task 3/D-75: --resume bypasses the normal static-batch +
@@ -218,7 +218,7 @@ def scan_cmd(
             adapter = _build_adapter(cfg)
         except ValueError as exc:
             typer.echo(f"Invalid target configuration: {exc}", err=True)
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
 
         async def _do_resume() -> CampaignResult:
             try:
@@ -237,7 +237,7 @@ def scan_cmd(
             campaign_result = asyncio.run(_do_resume())
         except (UnknownScanIdError, ConfigFingerprintMismatchError) as exc:
             typer.echo(str(exc), err=True)
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
 
         final_state = campaign_result.final_state
         typer.echo(
@@ -263,7 +263,10 @@ def scan_cmd(
             # the only cli.py code path that touches the `[deep]`-extra-only
             # `attacker.budget` module, reached only after the gate above
             # has already cleared.
-            from llmsec.attacker.budget import estimate_campaign_cost, render_cost_notice
+            from llmsec.attacker.budget import (
+                estimate_campaign_cost,
+                render_cost_notice,
+            )
             from llmsec.attacker.config import resolve_settings
 
             if cfg.attacker is not None:
@@ -286,19 +289,19 @@ def scan_cmd(
         report = asyncio.run(api.run_scan(cfg, bypass_flag=yes_i_am_authorized))
     except AttackerExtraNotInstalled as exc:
         typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     except AuthorizationDeclined as exc:
         # A declined/non-interactive authorization must surface as a clean
         # CLI message, never an unhandled traceback (T-01-20).
         typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     except ValueError as exc:
         # `_build_adapter()` raises `ValueError` on missing/invalid required
         # target fields (e.g. `raw_llm` without `model`/`api_key_env`) — must
         # surface as a clean CLI message, never an unhandled traceback,
         # same as the AuthorizationDeclined case above (WR-01).
         typer.echo(f"Invalid target configuration: {exc}", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     typer.echo(f"Scan {report.scan_id} complete: {len(report.findings)} finding(s).")
 
 
@@ -316,10 +319,10 @@ def report_cmd(
         report = load_report(report_path)
     except FileNotFoundError:
         typer.echo(f"No persisted scan found for scan_id={scan_id!r} at {report_path}.", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     except ValidationError as exc:
         typer.echo(f"Persisted scan at {report_path} is invalid: {exc}", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     reporter = {"json": JsonReporter(), "markdown": MarkdownReporter()}[fmt]
     # Report regeneration is a separate, short-lived event-loop invocation
@@ -386,7 +389,7 @@ def dashboard_cmd(
         require_dashboard_extra()
     except DashboardExtraNotInstalled as exc:
         typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     from llmsec.dashboard.auth import DASHBOARD_TOKEN_ENV_VAR
 

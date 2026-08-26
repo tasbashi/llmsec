@@ -17,6 +17,7 @@ honesty failure D-15 exists to prevent.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import re
@@ -26,7 +27,7 @@ from typing import Callable
 import httpx
 
 from llmsec.adapters.base import TargetAdapter
-from llmsec.models import TestCase, TargetResponse
+from llmsec.models import TargetResponse, TestCase
 
 logger = logging.getLogger(__name__)
 
@@ -182,12 +183,10 @@ class HttpAppAdapter(TargetAdapter):
             text = resp.text
 
         if self.session_id_path and data is not None:
-            try:
+            # A malformed/missing session id leaves the id unchanged rather
+            # than raising, so the sequence continues (T-02-17).
+            with contextlib.suppress(KeyError, IndexError, TypeError):
                 next_session_id = extract_path(data, self.session_id_path)
-            except (KeyError, IndexError, TypeError):
-                # A malformed/missing session id leaves the id unchanged
-                # rather than raising, so the sequence continues (T-02-17).
-                pass
 
         return text, next_session_id, resp.status_code
 

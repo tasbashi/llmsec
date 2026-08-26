@@ -16,6 +16,7 @@ the DeepAgents/LangGraph stack goes through for a locally-constructed model.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Callable
 from unittest.mock import AsyncMock
 
@@ -88,6 +89,20 @@ def adversarial_target_response() -> TargetResponse:
         status_code=200,
         latency_ms=1.0,
     )
+
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def strip_ansi(text: str) -> str:
+    """Strip Rich/Click SGR escape codes from CLI-runner-captured output.
+
+    Rich styles a flag name's leading dash and its body as separate spans
+    (e.g. `--deep` renders as `\\x1b[36m-\\x1b[0m\\x1b[36m-deep\\x1b[0m`), so a
+    raw `"--deep" in result.output` substring check is not reliable against
+    styled help text -- it must be stripped first.
+    """
+    return _ANSI_ESCAPE_RE.sub("", text)
 
 
 # --- Scripted structured-output chat model ----------------------------------
@@ -245,7 +260,11 @@ def patch_analyst_and_recon_roles(
     from llmsec.attacker.roles import ROLE_REGISTRY
     from llmsec.attacker.roles.analyst import ObservedDefence, build_analyst_agent
     from llmsec.attacker.roles.crescendo import CrescendoOutput, build_crescendo_agent
-    from llmsec.attacker.roles.recon import RECON_PROBE_SET, ReconOutput, build_recon_agent
+    from llmsec.attacker.roles.recon import (
+        RECON_PROBE_SET,
+        ReconOutput,
+        build_recon_agent,
+    )
 
     def _apply() -> None:
         neutral_observation = ObservedDefence(
@@ -413,7 +432,7 @@ def malformed_tool_call_wrong_types(schema: type[BaseModel]) -> dict[str, Any]:
     `malformed_tool_call_missing_fields()`'s "field absent" case, so the
     fault-injection gate's fixture set covers more than one way a role's
     structured output can fail validation."""
-    return {"name": schema.__name__, "args": {field_name: 12345 for field_name in schema.model_fields}}
+    return {"name": schema.__name__, "args": dict.fromkeys(schema.model_fields, 12345)}
 
 
 # --- 05-10 D-94 gate infra: sandbox-integrity canary/flatten helpers -------

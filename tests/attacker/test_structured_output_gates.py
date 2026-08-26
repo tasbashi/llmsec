@@ -31,10 +31,17 @@ from llmsec.attacker.audit import AttackerAuditHandler, AttackerAuditWriter
 from llmsec.attacker.config import AttackerConfig, resolve_settings
 from llmsec.attacker.graph import build_campaign_graph
 from llmsec.attacker.roles import ROLE_REGISTRY
-from llmsec.attacker.roles._structured_retry import MAX_STRUCTURED_OUTPUT_RETRIES, invoke_role_with_retry
+from llmsec.attacker.roles._structured_retry import (
+    MAX_STRUCTURED_OUTPUT_RETRIES,
+    invoke_role_with_retry,
+)
 from llmsec.attacker.roles.analyst import ObservedDefence, build_analyst_agent
 from llmsec.attacker.roles.crescendo import CrescendoOutput, build_crescendo_agent
-from llmsec.attacker.roles.mutator import MutatedVariant, MutatorOutput, build_mutator_agent
+from llmsec.attacker.roles.mutator import (
+    MutatedVariant,
+    MutatorOutput,
+    build_mutator_agent,
+)
 from llmsec.attacker.roles.strategist import StrategistOutput, build_strategist_agent
 from llmsec.attacker.state import QueuedCase, new_campaign_state
 from llmsec.models import EvalResult, TargetResponse, TestCase, Verdict
@@ -201,7 +208,7 @@ class _AlwaysInvalidAgent:
     async def ainvoke(self, *args: Any, **kwargs: Any) -> Any:
         self.call_count += 1
         if self._canary is not None:
-            self.schema.model_validate({field: self._canary for field in self.schema.model_fields})
+            self.schema.model_validate(dict.fromkeys(self.schema.model_fields, self._canary))
         else:
             self.schema.model_validate({})
 
@@ -371,7 +378,7 @@ def test_malformed_fixture_set_includes_known_incompatible_model_shape():
         assert malformed["name"] == schema.__name__
         try:
             schema.model_validate(malformed["args"])
-        except Exception:  # noqa: BLE001 -- asserting it DOES fail validation
+        except Exception:  # asserting it DOES fail validation
             continue
         pytest.fail(f"expected {schema.__name__} to reject the wrong-typed fixture args")
 
@@ -419,7 +426,7 @@ async def test_known_incompatible_model_shaped_response_fails_recorded_not_crash
 
     final_state = await compiled.ainvoke(initial_state)
 
-    assert strategist_model._call_index == MAX_STRUCTURED_OUTPUT_RETRIES + 1  # noqa: SLF001
+    assert strategist_model._call_index == MAX_STRUCTURED_OUTPUT_RETRIES + 1
     assert final_state.get("termination_reason") is not None
     # The Strategist's own failure is recorded as TECHNIQUES_EXHAUSTED --
     # never the generic ROUND_CAP_REACHED, so a report can distinguish "the
@@ -492,7 +499,7 @@ async def test_role_recovers_on_second_attempt_and_every_attempt_is_auditable(
     # The Strategist recovered on its SECOND attempt: both script entries
     # were consumed, the round completed normally (a variant was
     # dispatched), and the recovered technique is visible in final state.
-    assert strategist_model._call_index == 2  # noqa: SLF001 -- test-only introspection
+    assert strategist_model._call_index == 2
     assert len(final_state.get("dispatch_results", [])) == 1
     assert final_state.get("selected_technique") == "instruction_override"
 

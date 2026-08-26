@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+from unittest.mock import AsyncMock
 
 import pytest
 import typer
@@ -14,7 +15,6 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 from typer.testing import CliRunner
-from unittest.mock import AsyncMock
 
 from llmsec.attacker import budget
 from llmsec.attacker.budget import (

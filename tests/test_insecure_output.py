@@ -13,10 +13,10 @@ regression pin mirroring `test_pii_schema_regression.py`'s house style
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
 import random
 import re
 import time
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import ValidationError
@@ -25,14 +25,16 @@ from llmsec.detection import judge as judge_module
 from llmsec.detection.judge import JudgeVerdict
 from llmsec.detection.output_patterns import is_presence_only_class
 from llmsec.models import EvalResult, ScanContext, TargetResponse, TestCase, Verdict
-from llmsec.modules.insecure_output import InsecureOutputModule
-from llmsec.modules.insecure_output import _match_is_prose_quoted
-from llmsec.modules.insecure_output import _LEADIN_WINDOW_CHARS
-from llmsec.modules.insecure_output import _QUOTING_LEADIN_RE
-from llmsec.modules.insecure_output import _SEGMENT_BOUNDARY_RE
-from llmsec.modules.insecure_output import _classify_output_tier
-from llmsec.modules.insecure_output import _segment_boundaries
-from llmsec.modules.insecure_output import _segment_start_before
+from llmsec.modules.insecure_output import (
+    _LEADIN_WINDOW_CHARS,
+    _QUOTING_LEADIN_RE,
+    _SEGMENT_BOUNDARY_RE,
+    InsecureOutputModule,
+    _classify_output_tier,
+    _match_is_prose_quoted,
+    _segment_boundaries,
+    _segment_start_before,
+)
 from llmsec.payloads import load_corpus
 from llmsec.payloads.schema import OutputVulnerabilityClass, PayloadEntry
 from llmsec.plugins.registry import BUILTIN_MODULE_IDS, PluginRegistry
@@ -1360,7 +1362,8 @@ def _cr01_equivalence_battery_seeded_random_texts(count: int, seed: int = 202610
     run), never re-randomized between runs.
     """
     rng = random.Random(seed)
-    alphabet = list("ab .?!;:\n\r\t") + [
+    alphabet = [
+        *"ab .?!;:\n\r\t",
         "\r\n",
         ". ",
         "\n\n",

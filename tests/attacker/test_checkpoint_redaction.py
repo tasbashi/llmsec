@@ -36,7 +36,11 @@ from llmsec.attacker.checkpoint import (
 )
 from llmsec.attacker.config import AttackerConfig, resolve_settings
 from llmsec.attacker.graph import build_campaign_graph
-from llmsec.attacker.roles.mutator import MutatedVariant, MutatorOutput, build_mutator_agent
+from llmsec.attacker.roles.mutator import (
+    MutatedVariant,
+    MutatorOutput,
+    build_mutator_agent,
+)
 from llmsec.attacker.roles.strategist import StrategistOutput, build_strategist_agent
 from llmsec.attacker.state import QueuedCase, new_campaign_state
 from llmsec.config import ScanConfig, TargetConfig
@@ -327,7 +331,7 @@ async def test_full_campaign_checkpoint_bytes_contain_canary_with_plain_serde_co
 
 
 def _config(**attacker_overrides) -> ScanConfig:
-    defaults = dict(enabled=True, profile="light", budget_usd=1.0, model="openai:gpt-4o-mini")
+    defaults = {"enabled": True, "profile": "light", "budget_usd": 1.0, "model": "openai:gpt-4o-mini"}
     defaults.update(attacker_overrides)
     return ScanConfig(
         target=TargetConfig(type="raw_llm", model="openai/gpt-4o-mini", api_key_env="TEST_API_KEY"),

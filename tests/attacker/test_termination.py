@@ -20,7 +20,11 @@ import pytest
 
 from llmsec.attacker.config import AttackerConfig
 from llmsec.attacker.roles import ROLE_REGISTRY
-from llmsec.attacker.roles.mutator import MutatedVariant, MutatorOutput, build_mutator_agent
+from llmsec.attacker.roles.mutator import (
+    MutatedVariant,
+    MutatorOutput,
+    build_mutator_agent,
+)
 from llmsec.attacker.roles.strategist import StrategistOutput, build_strategist_agent
 from llmsec.attacker.runner import run_attacker_campaign
 from llmsec.config import ScanConfig, TargetConfig
