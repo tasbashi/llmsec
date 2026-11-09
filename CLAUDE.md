@@ -50,6 +50,17 @@ llmsec dashboard --output-dir ./llmsec_reports       # requires [dashboard] + LL
 `demo-app/` (FastAPI backend + Vite frontend) is a deliberately vulnerable target to scan
 against locally; the example config points at its `/chat` endpoint.
 
+## Git workflow
+
+- **Never push `master` to origin** (including tags) without the user explicitly asking for
+  that push, in that moment. This holds even right after a local commit/merge/`release:` bump
+  that the user did ask for -- committing, merging, and publishing to PyPI are not standing
+  authorization to also push `master`. `scripts/publish-pypi.sh` and
+  `scripts/sync-public-branch.sh` are exempt for the parts of their own job that inherently
+  require a push (`sync-public-branch.sh` pushing `main`; `publish-pypi.sh` uploading to
+  PyPI) -- but their own end-of-script reminder to also `git push origin master --tags` is a
+  suggestion to relay to the user, never something to act on unprompted.
+
 ## Architecture
 
 ### Scan pipeline
