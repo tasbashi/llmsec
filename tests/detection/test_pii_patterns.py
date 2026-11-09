@@ -228,7 +228,9 @@ def test_openai_key_true_positive_legacy_sk_prefix():
 def test_openai_key_true_positive_modern_sk_proj_with_marker():
     """The modern `sk-proj-` shape, embedding the `T3BlbkFJ` marker with
     `-`/`_` in the body, must be detected (the verified legacy-only gap)."""
-    key = "sk-proj-A1b2C3d4-T3BlbkFJ-E5f6G7h8"
+    # Built by concatenation so secret scanners (GitHub push protection)
+    # do not flag this synthetic fixture as a real OpenAI key.
+    key = "sk-" + "proj-A1b2C3d4-" + "T3Blbk" + "FJ-E5f6G7h8"
     matches = classify(f"New key: {key}")
     assert any(m.type == "openai_key" and m.matched_text == key for m in matches)
 
